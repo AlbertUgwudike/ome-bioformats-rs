@@ -1,0 +1,9 @@
+[package]
+name = "ome-bioformats-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+either = "1.15.0"
+itertools = "0.14.0"
+ome-common-rs = { path = "../ome-common-rs" }
