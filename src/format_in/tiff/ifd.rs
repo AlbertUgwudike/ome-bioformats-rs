@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    fmt::{Display, format},
-};
+use std::collections::HashMap;
 
 use either::Either;
 
@@ -40,13 +37,12 @@ impl IFD {
         self.entries.get(&tag)
     }
 
-    pub fn size_of(kind: Type, count: u32) -> u64 {
+    pub fn size_of(kind: Type, count: u64) -> u64 {
         match kind {
-            Type::ASCII | Type::BYTE => 1 * count as u64,
+            Type::ASCII | Type::BYTE | Type::UNDEFINED => 1 * count as u64,
             Type::SHORT => 2 * count as u64,
             Type::LONG => 4 * count as u64,
-            Type::RATIONAL => 8 * count as u64,
-            _ => 8,
+            Type::RATIONAL | Type::DOUBLE => 8 * count as u64,
         }
     }
 }
@@ -55,12 +51,12 @@ impl IFD {
 pub struct Entry {
     tag: Tag,
     pub kind: Type,
-    pub count: u32,
+    pub count: u64,
     pub offset_or_datum: Either<u64, Datum>,
 }
 
 impl Entry {
-    pub fn new(tag: Tag, kind: Type, count: u32, offset: Either<u64, Datum>) -> Self {
+    pub fn new(tag: Tag, kind: Type, count: u64, offset: Either<u64, Datum>) -> Self {
         Entry {
             tag,
             kind,
@@ -128,6 +124,8 @@ pub enum Type {
     SHORT,
     LONG,
     RATIONAL,
+    UNDEFINED = 7,
+    DOUBLE = 16,
 }
 
 impl Type {
@@ -138,7 +136,8 @@ impl Type {
             3 => Some(Type::SHORT),
             4 => Some(Type::LONG),
             5 => Some(Type::RATIONAL),
-            7 => Some(Type::BYTE),
+            7 => Some(Type::UNDEFINED),
+            16 => Some(Type::DOUBLE),
             _ => None,
         }
     }
@@ -155,10 +154,21 @@ pub enum Datum {
     STR(String),          // Type::ASCII
     U16(Vec<u16>),        // Type::SHORT
     U32(Vec<u32>),        // Type::LONG
+    U64(Vec<u64>),        // Type::DOUBLE
     RAT(Vec<(u32, u32)>), // Type::RATIONAL
 }
 
 impl Datum {
+    pub fn to_vec_u64(&self) -> Option<Vec<u64>> {
+        match self {
+            Self::U8(v) => Some(v.into_iter().map(|a| *a as u64).collect()),
+            Self::U16(v) => Some(v.into_iter().map(|a| *a as u64).collect()),
+            Self::U32(v) => Some(v.into_iter().map(|a| *a as u64).collect()),
+            Self::U64(v) => Some(v.to_vec()),
+            _ => None,
+        }
+    }
+
     pub fn to_vec_u32(&self) -> Option<Vec<u32>> {
         match self {
             Self::U8(v) => Some(v.into_iter().map(|a| *a as u32).collect()),
@@ -179,6 +189,16 @@ impl Datum {
     pub fn to_vec_u8(&self) -> Option<Vec<u8>> {
         match self {
             Self::U8(v) => Some(v.to_vec()),
+            _ => None,
+        }
+    }
+
+    pub fn to_u64(&self) -> Option<u64> {
+        match self {
+            Self::U8(v) => Some(v.get(0).map(|a| a.to_owned() as u64)).flatten(),
+            Self::U16(v) => Some(v.get(0).map(|a| a.to_owned() as u64)).flatten(),
+            Self::U32(v) => Some(v.get(0).map(|a| a.to_owned() as u64)).flatten(),
+            Self::U64(v) => Some(v.get(0).map(|a| a.to_owned())).flatten(),
             _ => None,
         }
     }

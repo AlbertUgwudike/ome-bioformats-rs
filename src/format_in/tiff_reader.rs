@@ -24,20 +24,20 @@ impl FormatReader for TiffReader {
         let mut dim = HashMap::new();
 
         let be = self.parser.byte_order();
-        let ifd_count = self.parser.n_ifds()?;
+        let ifd_count = self.parser.n_ifds()? as u64;
 
         for i in 0..ifd_count {
             let ifd = self.parser.nth_ifd(i)?;
-            let w = self.parser.image_width(&ifd)? as i32;
-            let h = self.parser.image_length(&ifd)? as i32;
-            let c = self.parser.samples_per_pixel(&ifd)? as i32;
+            let w = self.parser.image_width(&ifd)?;
+            let h = self.parser.image_length(&ifd)?;
+            let c = self.parser.samples_per_pixel(&ifd)? as u64;
 
             dim.insert(i, Dim::from_whc(w, h, c));
 
             let bpps = self.parser.bits_per_sample(&ifd)?;
 
             for (j, v) in bpps.iter().enumerate() {
-                bpp.insert((j as i32, i), *v);
+                bpp.insert((j as u64, i), *v);
             }
         }
 
@@ -48,7 +48,7 @@ impl FormatReader for TiffReader {
         })
     }
 
-    fn open_bytes(&mut self, origin: Loc, h: i32, w: i32) -> io::Result<Vec<u8>> {
+    fn open_bytes(&mut self, origin: Loc, h: u64, w: u64) -> io::Result<Vec<u8>> {
         let Loc { x, y, z, c, t, s } = origin;
 
         let ifd = self.parser.nth_ifd(s)?;
@@ -57,43 +57,45 @@ impl FormatReader for TiffReader {
         let samples_per_pixel = bits_per_sample.len();
         let bytes_per_sample = (bits_per_sample[c as usize] / 8) as usize;
         let is_chunky = self.parser.planar_configuration(&ifd)? == 1;
-        let rows_per_strip = self.parser.rows_per_strip(&ifd)?;
+        let rows_per_strip = self.parser.rows_per_strip(&ifd)? as u64;
 
         let bytes_per_pixel = if is_chunky {
             // Chunky configuration, 'c' samples per pixel
-            bits_per_sample.into_iter().map(|a| a as i32).sum::<i32>() / 8
+            bits_per_sample.into_iter().map(|a| a as u64).sum::<u64>() / 8
         } else {
             // Planar configuration, one sample per pixel
             *bits_per_sample
                 .get(c as usize)
-                .ok_or(Error::other("Invalid c"))? as i32
+                .ok_or(Error::other("Invalid c"))? as u64
                 / 8
         };
 
-        let start_idx = y / rows_per_strip as i32;
-        let end_idx = (y + h) / rows_per_strip as i32;
+        let start_idx = y / rows_per_strip;
+        let end_idx = (y + h) / rows_per_strip;
 
+        let mut buff = vec![0; (bytes_per_pixel * iw * rows_per_strip) as usize];
         let mut out = Vec::with_capacity((h * w * bytes_per_pixel) as usize);
 
         for strip_idx in start_idx..end_idx + 1 {
             // Calculate start/end indexes into image rows
-            let s_idx = (strip_idx * rows_per_strip as i32) as usize;
-            let e_idx = ((strip_idx + 1) * rows_per_strip as i32) as usize;
+            let s_idx = (strip_idx * rows_per_strip) as usize;
+            let e_idx = ((strip_idx + 1) * rows_per_strip) as usize;
 
             // Calculate start/end indices into a vector of strip rows
             let lower_idx = std::cmp::max(s_idx, y as usize) - s_idx;
             let upper_idx = std::cmp::min(e_idx, (y + h) as usize) - s_idx;
 
             // chunk and change
-            let bytes_per_row = bytes_per_pixel * iw as i32;
+            let bytes_per_row = bytes_per_pixel * iw;
             let lower_col = (bytes_per_pixel * x) as usize;
             let upper_col = lower_col + (bytes_per_pixel * w) as usize;
 
             // println!("{:?} {:?} {:?} ", bytes_per_row, lower_col, upper_col);
 
-            let strip = self.parser.read_strip(&ifd, strip_idx, bytes_per_pixel)?;
+            self.parser
+                .read_strip(&ifd, strip_idx, bytes_per_pixel, &mut buff)?;
 
-            let rows = strip
+            let rows = buff
                 .chunks_exact(bytes_per_row as usize)
                 .skip(lower_idx)
                 .take(upper_idx - lower_idx)
@@ -147,9 +149,12 @@ mod tests {
 
     #[test]
     fn test_open_pixels() {
-        let mut tr = TiffReader::new("assets/example_valid.tiff".into()).unwrap();
-        let origin = Loc::new(0, 10, 0, 1, 0, 0);
-        let (h, w) = (30, 15);
+        // let f_name = "assets/example_valid.tiff".into();
+        let f_name = "/Users/albert/Downloads/example_ws/ws_converted/24_3_21_7.1_conv.tiff".into();
+        let mut tr = TiffReader::new(f_name).unwrap();
+
+        let (x, y, z, c, t, s, h, w) = (200, 200, 0, 0, 0, 2, 10, 10);
+        let origin = Loc::new(x, y, z, c, t, s);
 
         let start = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let pxs = tr.open_pixels(origin, h, w).unwrap();
@@ -163,7 +168,10 @@ mod tests {
         };
 
         println!("Length = {:?}", data.len());
-
+        println!(
+            "Metadata = {:#?}",
+            tr.metadata().unwrap().dimensions.get(&0).unwrap()
+        );
         print_2d(&data, h as usize, w as usize);
 
         assert_eq!(data.len(), (h * w) as usize);

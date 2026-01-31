@@ -6,21 +6,21 @@ use std::{
 pub mod tiff;
 pub mod tiff_reader;
 
-type ChannelSeries = (i32, i32);
+type ChannelSeries = (u64, u64);
 type ChannelSeriesMap<T> = HashMap<ChannelSeries, T>;
 
 #[derive(Clone, Copy, Default)]
 pub struct Loc {
-    x: i32,
-    y: i32,
-    z: i32,
-    c: i32,
-    t: i32,
-    s: i32,
+    x: u64,
+    y: u64,
+    z: u64,
+    c: u64,
+    t: u64,
+    s: u64,
 }
 
 impl Loc {
-    fn new(x: i32, y: i32, z: i32, c: i32, t: i32, s: i32) -> Self {
+    fn new(x: u64, y: u64, z: u64, c: u64, t: u64, s: u64) -> Self {
         Loc { x, y, z, c, t, s }
     }
 
@@ -31,15 +31,15 @@ impl Loc {
 
 #[derive(Debug)]
 pub struct Dim {
-    w: i32,
-    h: i32,
-    d: i32,
-    t: i32,
-    c: i32,
+    w: u64,
+    h: u64,
+    d: u64,
+    t: u64,
+    c: u64,
 }
 
 impl Dim {
-    fn from_whc(w: i32, h: i32, d: i32) -> Self {
+    fn from_whc(w: u64, h: u64, d: u64) -> Self {
         Self {
             w,
             h,
@@ -58,7 +58,7 @@ pub enum ByteOrder {
 
 #[derive(Debug)]
 pub struct Metadata {
-    dimensions: HashMap<i32, Dim>,
+    dimensions: HashMap<u64, Dim>,
     bits_per_pixel: ChannelSeriesMap<u16>,
     byte_order: ByteOrder,
 }
@@ -88,13 +88,13 @@ pub trait FormatReader {
 
     // Read rectangular portion of image data at given location
     // returns bytes, image metadata should be used to decode bytes
-    fn open_bytes(&mut self, origin: Loc, h: i32, w: i32) -> io::Result<Vec<u8>>;
+    fn open_bytes(&mut self, origin: Loc, h: u64, w: u64) -> io::Result<Vec<u8>>;
 
     // ----------------- Derived -------------------
 
     // Read rectangular portion of image data at given location
     // returns PixelSlice
-    fn open_pixels(&mut self, origin: Loc, h: i32, w: i32) -> io::Result<PixelSlice> {
+    fn open_pixels(&mut self, origin: Loc, h: u64, w: u64) -> io::Result<PixelSlice> {
         let bytes = self.open_bytes(origin, h, w)?;
         let md = self.metadata()?;
 
