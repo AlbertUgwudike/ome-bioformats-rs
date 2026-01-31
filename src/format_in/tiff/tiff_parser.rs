@@ -24,7 +24,7 @@ pub struct TiffParser {
 
 impl TiffParser {
     pub fn new(file: String) -> io::Result<Self> {
-        let mut istream = RandomAccessInputStream::new(file)?;
+        let mut istream = RandomAccessInputStream::from_file(file)?;
         let (is_big_tiff, first_ifd_offset) = Self::init_stream(&mut istream)?;
         let bytes_per_entry = if is_big_tiff { 20 } else { 12 };
 
@@ -37,7 +37,6 @@ impl TiffParser {
     }
 
     fn init_stream(istream: &mut RandomAccessInputStream<File>) -> io::Result<(bool, u64)> {
-        istream.mark()?;
         istream.seek_abs(0)?;
 
         let first_two_chars = (istream.read_char()?, istream.read_char()?);
@@ -62,7 +61,6 @@ impl TiffParser {
             istream.read_u32()? as u64
         };
 
-        istream.reset()?;
         Ok((is_bt, first_offset))
     }
 

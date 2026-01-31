@@ -175,6 +175,5 @@ mod tests {
         print_2d(&data, h as usize, w as usize);
 
         assert_eq!(data.len(), (h * w) as usize);
-        assert!(1 == 2);
     }
 }
