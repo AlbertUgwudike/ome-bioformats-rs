@@ -18,7 +18,6 @@ use crate::format_in::{
 pub struct TiffParser {
     istream: RandomAccessInputStream<File>,
     is_big_tiff: bool,
-    bytes_per_entry: u64,
     first_ifd_offset: u64,
 }
 
@@ -26,13 +25,12 @@ impl TiffParser {
     pub fn new(file: String) -> io::Result<Self> {
         let mut istream = RandomAccessInputStream::from_file(file)?;
         let (is_big_tiff, first_ifd_offset) = Self::init_stream(&mut istream)?;
-        let bytes_per_entry = if is_big_tiff { 20 } else { 12 };
+        // let bytes_per_entry = if is_big_tiff { 20 } else { 12 };
 
         Ok(Self {
             istream,
             is_big_tiff,
             first_ifd_offset,
-            bytes_per_entry,
         })
     }
 
@@ -287,13 +285,7 @@ impl TiffParser {
             .ok_or(Error::other("Failed parse orientation"))
     }
 
-    pub fn read_strip(
-        &mut self,
-        ifd: &IFD,
-        strip_idx: u64,
-        bytes_per_pixel: u64,
-        buff: &mut [u8],
-    ) -> io::Result<()> {
+    pub fn read_strip(&mut self, ifd: &IFD, strip_idx: u64, buff: &mut [u8]) -> io::Result<()> {
         let strip_offsets = self.strip_offsets(ifd)?;
         let offset = strip_offsets
             .get(strip_idx as usize)
@@ -304,19 +296,9 @@ impl TiffParser {
             .get(strip_idx as usize)
             .ok_or(Error::other("Strip byte count index out of range"))?;
 
-        let rows_per_strip = self.rows_per_strip(ifd)? as u64;
-        let strip_count = strip_byte_counts.len();
-        let row_count = if strip_idx as usize == strip_count - 1 {
-            self.image_length(ifd)? % rows_per_strip
-        } else {
-            rows_per_strip
-        };
-
-        let expected_byte_count = row_count * self.image_width(ifd)? * bytes_per_pixel;
-
         match self.compression(&ifd)? {
             Compression::PackBits => {
-                Compression::unpackbits(&mut self.istream, buff, expected_byte_count)?;
+                Compression::unpackbits(&mut self.istream, buff, *strip_byte_count)?;
             }
             Compression::CCITT => todo!(),
             Compression::None => {

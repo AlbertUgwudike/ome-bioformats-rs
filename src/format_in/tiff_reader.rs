@@ -90,10 +90,7 @@ impl FormatReader for TiffReader {
             let lower_col = (bytes_per_pixel * x) as usize;
             let upper_col = lower_col + (bytes_per_pixel * w) as usize;
 
-            // println!("{:?} {:?} {:?} ", bytes_per_row, lower_col, upper_col);
-
-            self.parser
-                .read_strip(&ifd, strip_idx, bytes_per_pixel, &mut buff)?;
+            self.parser.read_strip(&ifd, strip_idx, &mut buff)?;
 
             let rows = buff
                 .chunks_exact(bytes_per_row as usize)
@@ -127,9 +124,10 @@ impl FormatReader for TiffReader {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use std::{
-        fmt::{Debug, Display},
+        fmt::Display,
         time::{SystemTime, UNIX_EPOCH},
     };
 

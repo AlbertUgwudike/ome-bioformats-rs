@@ -1,4 +1,4 @@
-use std::io::{self, Error, Read, Seek};
+use std::io::{self, Read, Seek};
 
 use ome_common_rs::ios::RandomAccessInputStream;
 
@@ -57,12 +57,10 @@ impl Compression {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use std::io::{self, BufReader};
-
-    use ome_common_rs::ios::RandomAccessInputStream;
-
     use crate::format_in::tiff::compression::Compression;
+    use ome_common_rs::ios::RandomAccessInputStream;
 
     #[test]
     fn test_unpackbits() {
