@@ -217,4 +217,57 @@ impl Datum {
             _ => None,
         }
     }
+
+    pub fn from_bytes_u16(b: &Vec<u8>, le: bool) -> Datum {
+        Datum::U16(
+            (&b).chunks_exact(2)
+                .map(|a| {
+                    if le {
+                        u16::from_le_bytes([a[0], a[1]])
+                    } else {
+                        u16::from_be_bytes([a[0], a[1]])
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    fn bytes_to_u32(b: &Vec<u8>, le: bool) -> Vec<u32> {
+        (&b).chunks_exact(4)
+            .map(|a| {
+                if le {
+                    u32::from_le_bytes([a[0], a[1], a[2], a[3]])
+                } else {
+                    u32::from_be_bytes([a[0], a[1], a[2], a[3]])
+                }
+            })
+            .collect()
+    }
+
+    pub fn from_bytes_u32(b: &Vec<u8>, le: bool) -> Datum {
+        Datum::U32(Datum::bytes_to_u32(b, le))
+    }
+
+    pub fn from_bytes_u64(b: &Vec<u8>, le: bool) -> Datum {
+        Datum::U64(
+            (&b).chunks_exact(8)
+                .map(|a| {
+                    if le {
+                        u64::from_le_bytes([a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]])
+                    } else {
+                        u64::from_be_bytes([a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]])
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    pub fn from_bytes_rational(b: &Vec<u8>, le: bool) -> Datum {
+        Datum::RAT(
+            Datum::bytes_to_u32(b, le)
+                .chunks_exact(2)
+                .map(|p| (p[0], p[1]))
+                .collect(),
+        )
+    }
 }

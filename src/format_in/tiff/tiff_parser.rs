@@ -62,17 +62,6 @@ impl TiffParser {
         Ok((is_bt, first_offset))
     }
 
-    fn sequence<T: Clone>(v: Vec<io::Result<T>>) -> io::Result<Vec<T>> {
-        let mut res = vec![];
-        for i in v {
-            match &i {
-                Ok(j) => res.push(j.clone()),
-                Err(_) => return Err(Error::other("")),
-            }
-        }
-        Ok(res)
-    }
-
     fn read_ifd(&mut self) -> io::Result<IFD> {
         let n_entries = if self.is_big_tiff {
             self.istream.read_u64()?
@@ -177,32 +166,25 @@ impl TiffParser {
     }
 
     fn read_datum(&mut self, kind: Type, count: u64) -> io::Result<Datum> {
+        let byte_count = IFD::size_of(kind, count) as usize;
+        let offset = self.istream.get_file_pointer()?;
+
+        let mut buff = vec![0; byte_count];
+
+        let is_le = self.istream.is_little_endian();
+        let n = self.istream.read(&mut buff, offset)?;
+
+        if n < byte_count {
+            return Err(Error::other("Insufficient byes read"));
+        }
+
         Ok(match kind {
-            Type::BYTE => Datum::U8(Self::sequence(
-                (0..count).map(|_| self.istream.read_byte()).collect(),
-            )?),
-            Type::UNDEFINED => Datum::U8(Self::sequence(
-                (0..count).map(|_| self.istream.read_byte()).collect(),
-            )?),
-            Type::SHORT => Datum::U16(Self::sequence(
-                (0..count).map(|_| self.istream.read_u16()).collect(),
-            )?),
-            Type::LONG => Datum::U32(Self::sequence(
-                (0..count).map(|_| self.istream.read_u32()).collect(),
-            )?),
-            Type::DOUBLE => Datum::U64(Self::sequence(
-                (0..count).map(|_| self.istream.read_u64()).collect(),
-            )?),
-            Type::ASCII => Datum::STR(
-                Self::sequence((0..count).map(|_| self.istream.read_char()).collect())?
-                    .iter()
-                    .fold(String::new(), |a, b| a + &b.to_string()),
-            ),
-            Type::RATIONAL => Datum::RAT(Self::sequence(
-                (0..count)
-                    .map(|_| Ok((self.istream.read_u32()?, self.istream.read_u32()?)))
-                    .collect(),
-            )?),
+            Type::BYTE | Type::UNDEFINED => Datum::U8(buff),
+            Type::SHORT => Datum::from_bytes_u16(&buff, is_le),
+            Type::LONG => Datum::from_bytes_u32(&buff, is_le),
+            Type::DOUBLE => Datum::from_bytes_u64(&buff, is_le),
+            Type::ASCII => Datum::STR(String::from_utf8(buff).map_err(|_| Error::other("ASCII"))?),
+            Type::RATIONAL => Datum::from_bytes_rational(&buff, is_le),
         })
     }
 
@@ -285,20 +267,22 @@ impl TiffParser {
             .ok_or(Error::other("Failed parse orientation"))
     }
 
-    pub fn read_strip(&mut self, ifd: &IFD, strip_idx: u64, buff: &mut [u8]) -> io::Result<()> {
+    pub fn read_strip(
+        &mut self,
+        ifd: &IFD,
+        strip_idx: u64,
+        buff: &mut [u8],
+        expected_bytes: u64,
+    ) -> io::Result<()> {
         let strip_offsets = self.strip_offsets(ifd)?;
         let offset = strip_offsets
             .get(strip_idx as usize)
             .ok_or(Error::other("Strip offset index out of range"))?;
-
-        let strip_byte_counts = self.strip_byte_counts(ifd)?;
-        let strip_byte_count = strip_byte_counts
-            .get(strip_idx as usize)
-            .ok_or(Error::other("Strip byte count index out of range"))?;
+        self.istream.seek_abs(*offset)?;
 
         match self.compression(&ifd)? {
             Compression::PackBits => {
-                Compression::unpackbits(&mut self.istream, buff, *strip_byte_count)?;
+                Compression::unpackbits(&mut self.istream, buff, expected_bytes)?;
             }
             Compression::CCITT => todo!(),
             Compression::None => {

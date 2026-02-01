@@ -58,6 +58,7 @@ impl FormatReader for TiffReader {
         let bytes_per_sample = (bits_per_sample[c as usize] / 8) as usize;
         let is_chunky = self.parser.planar_configuration(&ifd)? == 1;
         let rows_per_strip = self.parser.rows_per_strip(&ifd)? as u64;
+        let n_strips = self.parser.strip_offsets(&ifd)?.len() as u64;
 
         let bytes_per_pixel = if is_chunky {
             // Chunky configuration, 'c' samples per pixel
@@ -90,7 +91,14 @@ impl FormatReader for TiffReader {
             let lower_col = (bytes_per_pixel * x) as usize;
             let upper_col = lower_col + (bytes_per_pixel * w) as usize;
 
-            self.parser.read_strip(&ifd, strip_idx, &mut buff)?;
+            let expected_bytes = if strip_idx + 1 == n_strips {
+                bytes_per_pixel * iw * ((y + h) % rows_per_strip)
+            } else {
+                bytes_per_pixel * iw * rows_per_strip
+            };
+
+            self.parser
+                .read_strip(&ifd, strip_idx, &mut buff, expected_bytes)?;
 
             let rows = buff
                 .chunks_exact(bytes_per_row as usize)
@@ -146,32 +154,41 @@ mod tests {
     }
 
     #[test]
-    fn test_open_pixels() {
-        // let f_name = "assets/example_valid.tiff".into();
-        let f_name = "/Users/albert/Downloads/example_ws/ws_converted/24_3_21_7.1_conv.tiff".into();
+    fn open_pixels_normal_tiff() {
+        let f_name = "assets/example_valid.tiff".into();
         let mut tr = TiffReader::new(f_name).unwrap();
 
-        let (x, y, z, c, t, s, h, w) = (200, 200, 0, 0, 0, 2, 10, 10);
+        let (x, y, z, c, t, s, h, w) = (0, 0, 0, 1, 0, 0, 1979, 1979);
         let origin = Loc::new(x, y, z, c, t, s);
-
-        let start = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let pxs = tr.open_pixels(origin, h, w).unwrap();
-        let end = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-
-        println!("{:?}", end - start);
 
         let data = match pxs {
             PixelSlice::U16(v) => v,
             _ => vec![],
         };
 
-        println!("Length = {:?}", data.len());
-        println!(
-            "Metadata = {:#?}",
-            tr.metadata().unwrap().dimensions.get(&0).unwrap()
-        );
-        print_2d(&data, h as usize, w as usize);
+        let check_sum = data.into_iter().map(|a| a as u64).sum::<u64>();
 
-        assert_eq!(data.len(), (h * w) as usize);
+        assert_eq!(check_sum, 184163095);
+    }
+
+    #[test]
+    fn open_pixels_big_tiff() {
+        let f_name = "/Users/albert/Downloads/example_ws/ws_converted/24_3_21_7.1_conv.tiff".into();
+        let mut tr = TiffReader::new(f_name).unwrap();
+
+        let (x, y, z, c, t, s, h, w) = (0, 0, 0, 0, 0, 0, 1000, 1000);
+        let origin = Loc::new(x, y, z, c, t, s);
+
+        let pxs = tr.open_pixels(origin, h, w).unwrap();
+
+        let data = match pxs {
+            PixelSlice::U16(v) => v,
+            _ => vec![],
+        };
+
+        let check_sum = data.into_iter().map(|a| a as u64).sum::<u64>();
+
+        assert_eq!(check_sum, 7901471);
     }
 }

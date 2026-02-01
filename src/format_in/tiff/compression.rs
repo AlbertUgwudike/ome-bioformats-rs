@@ -26,11 +26,7 @@ impl Compression {
     ) -> io::Result<()> {
         let mut curr_byte_idx: usize = 0;
 
-        if istream.available()? == 0 {
-            return Ok(());
-        }
-
-        while (curr_byte_idx as u64) < expected_byte_count {
+        while (curr_byte_idx as u64) < expected_byte_count && istream.available()? != 0 {
             let byte = istream.read_byte()?;
             let count = byte as usize;
 
