@@ -271,22 +271,29 @@ impl TiffParser {
         &mut self,
         ifd: &IFD,
         strip_idx: u64,
-        buff: &mut [u8],
+        out_buff: &mut [u8],
         expected_bytes: u64,
     ) -> io::Result<()> {
         let strip_offsets = self.strip_offsets(ifd)?;
         let offset = strip_offsets
             .get(strip_idx as usize)
             .ok_or(Error::other("Strip offset index out of range"))?;
-        self.istream.seek_abs(*offset)?;
+
+        let strip_byte_counts = self.strip_byte_counts(ifd)?;
+        let strip_byte_count = strip_byte_counts
+            .get(strip_idx as usize)
+            .ok_or(Error::other("Strip byte_count index out of range"))?;
+
+        let mut in_buff = vec![0; *strip_byte_count as usize];
+        self.istream.read(&mut in_buff, *offset)?;
 
         match self.compression(&ifd)? {
             Compression::PackBits => {
-                Compression::unpackbits(&mut self.istream, buff, expected_bytes)?;
+                Compression::unpackbits(&mut in_buff, *strip_byte_count, out_buff, expected_bytes)?;
             }
             Compression::CCITT => todo!(),
             Compression::None => {
-                self.istream.read(buff, *offset as u64)?;
+                self.istream.read(out_buff, *offset as u64)?;
             }
         };
 

@@ -86,7 +86,7 @@ impl FormatReader for TiffReader {
             let lower_idx = std::cmp::max(s_idx, y as usize) - s_idx;
             let upper_idx = std::cmp::min(e_idx, (y + h) as usize) - s_idx;
 
-            // chunk and change
+            // Chunk and change
             let bytes_per_row = bytes_per_pixel * iw;
             let lower_col = (bytes_per_pixel * x) as usize;
             let upper_col = lower_col + (bytes_per_pixel * w) as usize;
@@ -160,7 +160,11 @@ mod tests {
 
         let (x, y, z, c, t, s, h, w) = (0, 0, 0, 1, 0, 0, 1979, 1979);
         let origin = Loc::new(x, y, z, c, t, s);
+
+        let start = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let pxs = tr.open_pixels(origin, h, w).unwrap();
+        let end = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        println!("Duration {:?}", end - start);
 
         let data = match pxs {
             PixelSlice::U16(v) => v,
@@ -170,6 +174,7 @@ mod tests {
         let check_sum = data.into_iter().map(|a| a as u64).sum::<u64>();
 
         assert_eq!(check_sum, 184163095);
+        // assert_eq!(1, 2)
     }
 
     #[test]

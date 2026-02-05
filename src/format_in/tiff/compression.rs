@@ -1,4 +1,7 @@
-use std::io::{self, Read, Seek};
+use std::{
+    io::{self, Read, Seek},
+    usize,
+};
 
 use ome_common_rs::ios::RandomAccessInputStream;
 
@@ -19,7 +22,7 @@ impl Compression {
         }
     }
 
-    pub fn unpackbits<T: Read + Seek>(
+    pub fn unpackbits_stream<T: Read + Seek>(
         istream: &mut RandomAccessInputStream<T>,
         buff: &mut [u8],
         expected_byte_count: u64,
@@ -51,6 +54,40 @@ impl Compression {
 
         Ok(())
     }
+
+    pub fn unpackbits(
+        in_buff: &mut [u8],
+        input_len: u64,
+        out_buff: &mut [u8],
+        output_len: u64,
+    ) -> io::Result<()> {
+        let mut in_idx = 0;
+        let mut out_idx = 0;
+
+        while in_idx < input_len as usize && out_idx < output_len as usize {
+            let byte = in_buff[in_idx];
+            let count = byte as usize;
+
+            if byte == 128 {
+                in_idx += 1;
+                continue;
+            } else if byte > 128 {
+                let next_byte = in_buff[in_idx + 1];
+                out_buff[out_idx..(out_idx + 256 - count + 1)].fill(next_byte);
+
+                out_idx += 256 - count + 1;
+                in_idx += 2;
+            } else {
+                let bytes = &in_buff[in_idx + 1..in_idx + count + 2];
+                out_buff[out_idx..(out_idx + count + 1)].copy_from_slice(bytes);
+
+                out_idx += count + 1;
+                in_idx += count + 2;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -65,7 +102,7 @@ mod tests {
             0xAA,
         ];
 
-        let mut istream = RandomAccessInputStream::from_byte_array(input);
+        let mut istream = RandomAccessInputStream::from_byte_array(&input);
 
         let expected_output: Vec<u8> = vec![
             0xAA, 0xAA, 0xAA, 0x80, 0x00, 0x2A, 0xAA, 0xAA, 0xAA, 0xAA, 0x80, 0x00, 0x2A, 0x22,
@@ -74,7 +111,7 @@ mod tests {
 
         let mut output_buff = vec![0; 24];
 
-        Compression::unpackbits(&mut istream, &mut output_buff, 24).unwrap();
+        Compression::unpackbits_stream(&mut istream, &mut output_buff, 24).unwrap();
 
         assert_eq!(output_buff, expected_output);
     }
