@@ -104,15 +104,18 @@ impl TiffEncoder {
             let bytes_per_row = dims.w * bytes_per_pixel;
 
             let rows_per_strip = TiffEncoder::MAX_STRIP_BYTE_COUNT / bytes_per_row as usize;
-            println!("RPS: {:?}", rows_per_strip);
+            let rows_per_strip = std::cmp::max(rows_per_strip, 1);
+
             let bytes_per_strip = rows_per_strip * bytes_per_row as usize;
-            let bytes_in_last = dims.h as usize % rows_per_strip;
+            let rows_in_last = dims.h % rows_per_strip as u64;
             let strip_count = dims.h.div_ceil(rows_per_strip as u64) as usize;
+
+            println!("SC: {:?}, BIL: {:?}", strip_count, rows_in_last);
 
             let mut byte_counts = vec![bytes_per_strip as u16; strip_count];
 
-            if bytes_in_last != 0 {
-                byte_counts[strip_count - 1] = bytes_in_last as u16;
+            if rows_in_last != 0 {
+                byte_counts[strip_count - 1] = (rows_in_last * bytes_per_row) as u16;
             }
 
             // HERE: write in IFDs + data sequentially
@@ -150,7 +153,7 @@ impl TiffEncoder {
 
             let data_pos = self.ostream.length()? as usize;
             let strip_offsets = (0..strip_count)
-                .map(|i| (data_pos + strip_count * 2 + i) as u32 * byte_counts[0] as u32)
+                .map(|i| (data_pos + strip_count * 4 + i * byte_counts[0] as usize) as u32)
                 .collect::<Vec<u32>>();
 
             self.write_entry(
@@ -218,6 +221,11 @@ impl TiffEncoder {
 
     fn magic_number(&self) -> u16 {
         if self.is_big_tiff { 43 } else { 42 }
+    }
+
+    pub fn write_strip(&mut self, offset: u64, buff: &[u8]) -> io::Result<()> {
+        self.ostream.write_bytes_exact(buff, offset as u64)?;
+        Ok(())
     }
 
     // -------------- Associated Items ---------------
