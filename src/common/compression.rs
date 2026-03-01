@@ -92,7 +92,7 @@ impl Compression {
 
 #[cfg(test)]
 mod tests {
-    use crate::format_in::tiff::compression::Compression;
+    use crate::common::compression::Compression;
     use ome_common_rs::ios::RandomAccessInputStream;
 
     #[test]

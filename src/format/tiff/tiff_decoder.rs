@@ -6,26 +6,23 @@ use std::{
 use either::Either::{Left, Right};
 use ome_common_rs::ios::RandomAccessInputStream;
 
-use crate::format_in::{
-    ByteOrder,
-    tiff::{
-        Datum,
-        compression::Compression,
-        ifd::{Entry, IFD, Tag, Type},
-    },
+use crate::common::{ByteOrder, Compression, Dim, Metadata};
+
+use crate::format::tiff::{
+    Datum,
+    ifd::{Entry, IFD, Tag, Type},
 };
 
-pub struct TiffParser {
+pub struct TiffDecoder {
     istream: RandomAccessInputStream<File>,
     is_big_tiff: bool,
     first_ifd_offset: u64,
 }
 
-impl TiffParser {
+impl TiffDecoder {
     pub fn new(file: String) -> io::Result<Self> {
         let mut istream = RandomAccessInputStream::from_file(file)?;
         let (is_big_tiff, first_ifd_offset) = Self::init_stream(&mut istream)?;
-        // let bytes_per_entry = if is_big_tiff { 20 } else { 12 };
 
         Ok(Self {
             istream,
@@ -60,6 +57,28 @@ impl TiffParser {
         };
 
         Ok((is_bt, first_offset))
+    }
+
+    pub fn metadata(&mut self) -> io::Result<Metadata> {
+        let mut bpp = Vec::new();
+        let mut dim = Vec::new();
+
+        let be = self.byte_order();
+        let ifd_count = self.n_ifds()? as u64;
+
+        for i in 0..ifd_count {
+            let ifd = self.nth_ifd(i)?;
+            let w = self.image_width(&ifd)?;
+            let h = self.image_length(&ifd)?;
+            let c = self.samples_per_pixel(&ifd)? as u64;
+
+            dim.push(Dim::from_whd(w, h, c));
+
+            let bpps = self.bits_per_sample(&ifd)?;
+            bpp.push(bpps);
+        }
+
+        Ok(Metadata::new(dim, bpp, be))
     }
 
     fn read_ifd(&mut self) -> io::Result<IFD> {
@@ -150,7 +169,9 @@ impl TiffParser {
         Ok(curr_ifd)
     }
 
-    pub fn read_entry(&mut self, ifd: &IFD, tag: Tag) -> io::Result<Datum> {
+    // Get value associated with provided tag.
+    // Will either disk read or access hashmap depedent on size.
+    pub fn get_entry(&mut self, ifd: &IFD, tag: Tag) -> io::Result<Datum> {
         let entry = ifd
             .get_entry(tag)
             .ok_or(Error::other(format!("Tag parse error: {:?}", tag)))?;
@@ -198,57 +219,57 @@ impl TiffParser {
 
     pub fn strip_byte_counts(&mut self, ifd: &IFD) -> io::Result<Vec<u64>> {
         // Array of SHORT OR LONG in tiff spec, use most permissive
-        self.read_entry(ifd, Tag::StripByteCounts)?
+        self.get_entry(ifd, Tag::StripByteCounts)?
             .to_vec_u64()
             .ok_or(Error::other("Failed parse strip byte counts"))
     }
 
     pub fn image_length(&mut self, ifd: &IFD) -> io::Result<u64> {
-        self.read_entry(ifd, Tag::ImageLength)?
+        self.get_entry(ifd, Tag::ImageLength)?
             .to_u64()
             .ok_or(Error::other("Failed parse ImageLength"))
     }
 
     pub fn image_width(&mut self, ifd: &IFD) -> io::Result<u64> {
-        self.read_entry(ifd, Tag::ImageWidth)?
+        self.get_entry(ifd, Tag::ImageWidth)?
             .to_u64()
             .ok_or(Error::other("Failed parse ImageWidth"))
     }
 
     pub fn rows_per_strip(&mut self, ifd: &IFD) -> io::Result<u64> {
-        self.read_entry(ifd, Tag::RowsPerStrip)?
+        self.get_entry(ifd, Tag::RowsPerStrip)?
             .to_u64()
             .ok_or(Error::other("Failed parse RowsPerStrip"))
     }
 
     pub fn strip_offsets(&mut self, ifd: &IFD) -> io::Result<Vec<u64>> {
         // Array of SHORT OR LONG in tiff spec, use most permissive
-        self.read_entry(ifd, Tag::StripOffsets)?
+        self.get_entry(ifd, Tag::StripOffsets)?
             .to_vec_u64()
             .ok_or(Error::other("Failed parse strip offsets"))
     }
 
     pub fn bits_per_sample(&mut self, ifd: &IFD) -> io::Result<Vec<u16>> {
         // Array of SHORT OR LONG in tiff spec, use most permissive
-        self.read_entry(ifd, Tag::BitsPerSample)?
+        self.get_entry(ifd, Tag::BitsPerSample)?
             .to_vec_u16()
             .ok_or(Error::other("Failed parse bits per sample"))
     }
 
     pub fn samples_per_pixel(&mut self, ifd: &IFD) -> io::Result<u16> {
-        self.read_entry(ifd, Tag::SamplesPerPixel)?
+        self.get_entry(ifd, Tag::SamplesPerPixel)?
             .to_u16()
             .ok_or(Error::other("Failed parse samples per pixel"))
     }
 
     pub fn planar_configuration(&mut self, ifd: &IFD) -> io::Result<u16> {
-        self.read_entry(ifd, Tag::PlanarConfiguration)?
+        self.get_entry(ifd, Tag::PlanarConfiguration)?
             .to_u16()
             .ok_or(Error::other("Failed parse planar configuratoin"))
     }
 
     pub fn compression(&mut self, ifd: &IFD) -> io::Result<Compression> {
-        self.read_entry(ifd, Tag::Compression)?
+        self.get_entry(ifd, Tag::Compression)?
             .to_u16()
             .ok_or(Error::other("Failed parse compression"))
             .map(|a| Compression::from_short(a).ok_or(Error::other("Failed parse compression")))
@@ -256,13 +277,13 @@ impl TiffParser {
     }
 
     pub fn fill_order(&mut self, ifd: &IFD) -> io::Result<u16> {
-        self.read_entry(ifd, Tag::FillOrder)?
+        self.get_entry(ifd, Tag::FillOrder)?
             .to_u16()
             .ok_or(Error::other("Failed parse fill order"))
     }
 
     pub fn orientation(&mut self, ifd: &IFD) -> io::Result<u16> {
-        self.read_entry(ifd, Tag::FillOrder)?
+        self.get_entry(ifd, Tag::FillOrder)?
             .to_u16()
             .ok_or(Error::other("Failed parse orientation"))
     }
@@ -311,7 +332,7 @@ mod tests {
 
     #[test]
     fn intialise_parser() {
-        let tp = TiffParser::new("assets/example_valid.tiff".into()).unwrap();
+        let tp = TiffDecoder::new("assets/example_valid.tiff".into()).unwrap();
 
         assert!(!tp.is_big_tiff);
         assert!(!tp.istream.is_little_endian());

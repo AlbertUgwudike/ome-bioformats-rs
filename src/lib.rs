@@ -1,4 +1,7 @@
+pub mod common;
+pub mod format;
 pub mod format_in;
+pub mod format_out;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right

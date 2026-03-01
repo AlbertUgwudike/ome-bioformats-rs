@@ -68,24 +68,24 @@ impl Entry {
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum Tag {
-    ImageWidth = 256,
-    ImageLength = 257,
-    BitsPerSample = 258,
-    Compression = 259,
-    PhotometricInterpretation = 262,
-    FillOrder = 266,
-    StripOffsets = 273,
-    Orientation = 274,
-    SamplesPerPixel = 277,
-    RowsPerStrip = 278,
-    StripByteCounts = 279,
-    XResolution = 282,
-    YResolution = 283,
-    PlanarConfiguration = 284,
-    ResolutionUnit = 296,
-    ExtraSamples = 338,
-    SampleFormat = 339,
-    Other = 0,
+    ImageWidth = 256,                // Required
+    ImageLength = 257,               // Required
+    BitsPerSample = 258,             // Required
+    Compression = 259,               // Required
+    PhotometricInterpretation = 262, // Required
+    FillOrder = 266,                 // --------
+    StripOffsets = 273,              // Required
+    Orientation = 274,               // --------
+    SamplesPerPixel = 277,           // Required?
+    RowsPerStrip = 278,              // Required
+    StripByteCounts = 279,           // Required
+    XResolution = 282,               // Required
+    YResolution = 283,               // Required
+    PlanarConfiguration = 284,       // --------
+    ResolutionUnit = 296,            // Required
+    ExtraSamples = 338,              // --------
+    SampleFormat = 339,              // --------
+    Other = 0,                       // --------
 }
 
 impl Tag {

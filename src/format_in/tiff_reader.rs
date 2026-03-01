@@ -1,64 +1,38 @@
-use std::collections::HashMap;
 use std::io::{self, Error};
 
-use crate::format_in::{Dim, Loc, Metadata};
-
 use super::FormatReader;
-use super::tiff::TiffParser;
+use crate::common::{Dim, Loc, Metadata};
+use crate::format::tiff::TiffDecoder;
 
 pub struct TiffReader {
-    parser: TiffParser,
+    metadata: Metadata,
+    decoder: TiffDecoder,
 }
 
 impl TiffReader {
     pub fn new(file: String) -> io::Result<Self> {
-        Ok(Self {
-            parser: TiffParser::new(file)?,
-        })
+        let mut decoder = TiffDecoder::new(file)?;
+        let metadata = decoder.metadata()?;
+        Ok(Self { metadata, decoder })
     }
 }
 
 impl FormatReader for TiffReader {
-    fn metadata(&mut self) -> io::Result<Metadata> {
-        let mut bpp = HashMap::new();
-        let mut dim = HashMap::new();
-
-        let be = self.parser.byte_order();
-        let ifd_count = self.parser.n_ifds()? as u64;
-
-        for i in 0..ifd_count {
-            let ifd = self.parser.nth_ifd(i)?;
-            let w = self.parser.image_width(&ifd)?;
-            let h = self.parser.image_length(&ifd)?;
-            let c = self.parser.samples_per_pixel(&ifd)? as u64;
-
-            dim.insert(i, Dim::from_whc(w, h, c));
-
-            let bpps = self.parser.bits_per_sample(&ifd)?;
-
-            for (j, v) in bpps.iter().enumerate() {
-                bpp.insert((j as u64, i), *v);
-            }
-        }
-
-        Ok(Metadata {
-            dimensions: dim,
-            bits_per_pixel: bpp,
-            byte_order: be,
-        })
+    fn metadata(&self) -> &Metadata {
+        &self.metadata
     }
 
     fn open_bytes(&mut self, origin: Loc, h: u64, w: u64) -> io::Result<Vec<u8>> {
         let Loc { x, y, z, c, t, s } = origin;
 
-        let ifd = self.parser.nth_ifd(s)?;
-        let iw = self.parser.image_width(&ifd)?;
-        let bits_per_sample = self.parser.bits_per_sample(&ifd)?;
+        let ifd = self.decoder.nth_ifd(s)?;
+        let iw = self.decoder.image_width(&ifd)?;
+        let bits_per_sample = self.decoder.bits_per_sample(&ifd)?;
         let samples_per_pixel = bits_per_sample.len();
         let bytes_per_sample = (bits_per_sample[c as usize] / 8) as usize;
-        let is_chunky = self.parser.planar_configuration(&ifd)? == 1;
-        let rows_per_strip = self.parser.rows_per_strip(&ifd)? as u64;
-        let n_strips = self.parser.strip_offsets(&ifd)?.len() as u64;
+        let is_chunky = self.decoder.planar_configuration(&ifd)? == 1;
+        let rows_per_strip = self.decoder.rows_per_strip(&ifd)? as u64;
+        let n_strips = self.decoder.strip_offsets(&ifd)?.len() as u64;
 
         let bytes_per_pixel = if is_chunky {
             // Chunky configuration, 'c' samples per pixel
@@ -97,7 +71,7 @@ impl FormatReader for TiffReader {
                 bytes_per_pixel * iw * rows_per_strip
             };
 
-            self.parser
+            self.decoder
                 .read_strip(&ifd, strip_idx, &mut buff, expected_bytes)?;
 
             let rows = buff
@@ -161,6 +135,26 @@ mod tests {
         let (x, y, z, c, t, s, h, w) = (0, 0, 0, 1, 0, 0, 1979, 1979);
         let origin = Loc::new(x, y, z, c, t, s);
 
+        let pxs = tr.open_pixels(origin, h, w).unwrap();
+
+        let data = match pxs {
+            PixelSlice::U16(v) => v,
+            _ => vec![],
+        };
+
+        let check_sum = data.into_iter().map(|a| a as u64).sum::<u64>();
+
+        assert_eq!(check_sum, 184163095);
+    }
+
+    #[test]
+    fn open_pixels_big_tiff() {
+        let f_name = "/Users/albert/Downloads/example_ws/ws_converted/24_3_21_7.1_conv.tiff".into();
+        let mut tr = TiffReader::new(f_name).unwrap();
+
+        let (x, y, z, c, t, s, h, w) = (0, 0, 0, 0, 0, 0, 10000, 10000);
+        let origin = Loc::new(x, y, z, c, t, s);
+
         let start = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let pxs = tr.open_pixels(origin, h, w).unwrap();
         let end = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
@@ -173,27 +167,7 @@ mod tests {
 
         let check_sum = data.into_iter().map(|a| a as u64).sum::<u64>();
 
-        assert_eq!(check_sum, 184163095);
-        // assert_eq!(1, 2)
-    }
-
-    #[test]
-    fn open_pixels_big_tiff() {
-        let f_name = "/Users/albert/Downloads/example_ws/ws_converted/24_3_21_7.1_conv.tiff".into();
-        let mut tr = TiffReader::new(f_name).unwrap();
-
-        let (x, y, z, c, t, s, h, w) = (0, 0, 0, 0, 0, 0, 1000, 1000);
-        let origin = Loc::new(x, y, z, c, t, s);
-
-        let pxs = tr.open_pixels(origin, h, w).unwrap();
-
-        let data = match pxs {
-            PixelSlice::U16(v) => v,
-            _ => vec![],
-        };
-
-        let check_sum = data.into_iter().map(|a| a as u64).sum::<u64>();
-
-        assert_eq!(check_sum, 7901471);
+        assert_eq!(check_sum, 3343488639);
+        assert_eq!(1, 2)
     }
 }
