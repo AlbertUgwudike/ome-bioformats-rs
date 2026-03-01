@@ -22,7 +22,9 @@ pub trait FormatReader {
         let md = self.metadata();
 
         let bbp = md
-            .bits_per_pixel(origin.channel_series())
+            .bits_per_pixel(origin.s as usize)
+            .ok_or(io::Error::other("Error reading bpp"))?
+            .get(origin.c as usize)
             .ok_or(io::Error::other("Error reading bpp"))?;
 
         match bbp {

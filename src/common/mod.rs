@@ -84,15 +84,24 @@ impl Metadata {
         }
     }
 
-    // We allow the bit depth to vary between channels/series
-    pub fn bits_per_pixel(&self, cs: ChannelSeries) -> Option<&u16> {
-        self.bits_per_pixel.get(cs.0).map(|v| v.get(cs.1)).flatten()
+    pub fn dimensions(&self, series: usize) -> Option<&Dim> {
+        self.dimensions.get(series)
     }
 
-    pub fn set_bits_per_pixel(&mut self, cs: ChannelSeries, v: u16) {
-        self.bits_per_pixel
-            .get_mut(cs.0)
-            .map(|n| n.get_mut(cs.1).map(|t| *t = v));
+    // We allow the bit depth to vary between channels/series
+    pub fn bits_per_pixel(&self, series: usize) -> Option<&Vec<u16>> {
+        self.bits_per_pixel.get(series)
+    }
+
+    pub fn set_bits_per_pixel(&mut self, series: usize, v: Vec<u16>) {
+        if series < self.bits_per_pixel.len() {
+            self.bits_per_pixel[series] = v
+        } else {
+            for _ in 0..series - self.bits_per_pixel.len() {
+                self.bits_per_pixel.push(vec![]);
+            }
+            self.bits_per_pixel.push(v)
+        }
     }
 
     pub fn byte_order(&self) -> &ByteOrder {

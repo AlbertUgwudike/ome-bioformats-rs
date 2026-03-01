@@ -103,13 +103,13 @@ impl TiffDecoder {
 
             let n_bytes = IFD::size_of(kind, count);
 
-            // println!(
-            //     "TAG: {:<25}  | KIND: {:10}  | COUNT: {:6}  | BYTES: {:4}",
-            //     tag.to_str(),
-            //     kind.to_str(),
-            //     count,
-            //     n_bytes
-            // );
+            println!(
+                "TAG: {:<25}  | KIND: {:10}  | COUNT: {:6}  | BYTES: {:4}",
+                tag.to_str(),
+                kind.to_str(),
+                count,
+                n_bytes
+            );
 
             let offset;
             let threshold = if self.is_big_tiff { 8 } else { 4 };
@@ -119,6 +119,8 @@ impl TiffDecoder {
             } else {
                 offset = Right(self.read_datum(kind, count)?);
                 self.istream.skip_bytes(threshold - n_bytes)?;
+
+                println!("VALUE: {:?}", offset);
             };
 
             entry_vec.push(Entry::new(tag, kind, count, offset))
@@ -321,8 +323,8 @@ impl TiffDecoder {
         Ok(())
     }
 
-    pub fn is_big_tiff(&self) -> &bool {
-        &self.is_big_tiff
+    pub fn is_big_tiff(&self) -> bool {
+        self.is_big_tiff
     }
 }
 

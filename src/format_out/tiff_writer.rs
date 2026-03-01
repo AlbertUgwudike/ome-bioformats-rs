@@ -2,7 +2,7 @@ use std::io::{self, Error};
 
 use crate::{
     common::{ChannelSeries, Loc, Metadata},
-    format::tiff::{TiffDecoder, TiffEncoder},
+    format::tiff::{TiffDecoder, TiffEncoder, ifd::IFD},
 };
 
 use super::FormatWriter;
@@ -20,13 +20,10 @@ impl TiffInit {
 
         // 2. Check file is tiff and get handle to parser
         let mut decoder = TiffDecoder::new(self.file_name.clone())?;
-        let encoder = TiffEncoder::new(self.file_name, *decoder.is_big_tiff())?;
+        let encoder =
+            TiffEncoder::modify(self.file_name, decoder.metadata()?, decoder.is_big_tiff())?;
 
-        Ok(TiffWriter {
-            metadata: decoder.metadata()?,
-            encoder,
-            decoder,
-        })
+        Ok(TiffWriter { encoder, decoder })
     }
 
     fn create(self) -> TiffBuilder {
@@ -49,8 +46,8 @@ impl TiffBuilder {
         }
     }
 
-    fn bits_per_pixel(mut self, cs: ChannelSeries, value: u16) -> Self {
-        self.metadata.set_bits_per_pixel(cs, value);
+    fn bits_per_pixel(mut self, series: usize, value: Vec<u16>) -> Self {
+        self.metadata.set_bits_per_pixel(series, value);
         self
     }
 
@@ -73,29 +70,21 @@ impl TiffBuilder {
     fn validate(&self) -> io::Result<()> {
         // Runtime check that metadata is valid
         //
-        todo!()
+        // todo!()
+        Ok(())
     }
 
     fn build(self) -> io::Result<TiffWriter> {
         self.validate()?;
 
-        let encoder = TiffEncoder::new(self.file_name.clone(), self.is_big_tiff)?;
-
-        let n_ifds = self.metadata.series_count();
-        for _ in 0..n_ifds {}
-
+        let encoder = TiffEncoder::create(self.file_name.clone(), self.metadata, self.is_big_tiff)?;
         let decoder = TiffDecoder::new(self.file_name)?;
 
-        Ok(TiffWriter {
-            metadata: self.metadata,
-            encoder,
-            decoder,
-        })
+        Ok(TiffWriter { encoder, decoder })
     }
 }
 
 pub struct TiffWriter {
-    metadata: Metadata,
     encoder: TiffEncoder,
     decoder: TiffDecoder,
 }
@@ -108,7 +97,8 @@ impl TiffWriter {
 
 impl FormatWriter for TiffWriter {
     fn write_bytes(&mut self, bytes: Vec<u8>, origin: Loc, h: u64, w: u64) -> std::io::Result<()> {
-        todo!()
+        // todo!()
+        Ok(())
     }
 }
 
@@ -119,25 +109,25 @@ mod tests {
     #[test]
     fn construct_writer() {
         // Example of modifying existing tiff (ONLY writing pixel data)
-        let writer = TiffWriter::new("file".into()).modify().unwrap();
+        // let writer = TiffWriter::new("assets/one.tiff".into()).modify().unwrap();
 
         // Example of creating brand new tiff from scratch
-        let writer = TiffWriter::new("file".into())
+        let writer = TiffWriter::new("assets/two.tiff".into())
             .create()
-            .dimensions(0, 10, 10)
-            .bits_per_pixel((0, 0), 8)
-            .bits_per_pixel((0, 1), 8)
-            .bits_per_pixel((0, 2), 8)
+            .dimensions(0, 1000, 1000)
+            .bits_per_pixel(0, [8, 8, 8, 8].to_vec())
             .build()
             .unwrap();
 
+        assert!(2 == 1)
+
         // Example for use during format conversion
-        // 'metadat' could come from some other format reader
-        let metadata = Metadata::default();
-        let writer = TiffWriter::new("file".into())
-            .create()
-            .set_metadata(metadata)
-            .build()
-            .unwrap();
+        // 'metadata' could come from some other format reader
+        // let metadata = Metadata::default();
+        // let writer = TiffWriter::new("assets/three.tiff".into())
+        //     .create()
+        //     .set_metadata(metadata)
+        //     .build()
+        //     .unwrap();
     }
 }

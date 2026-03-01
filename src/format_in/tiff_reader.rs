@@ -170,4 +170,24 @@ mod tests {
         assert_eq!(check_sum, 3343488639);
         assert_eq!(1, 2)
     }
+
+    #[test]
+    fn open_pixels_example_tiff() {
+        let f_name = "assets/two.tiff".into();
+        let mut tr = TiffReader::new(f_name).unwrap();
+
+        let (x, y, z, c, t, s, h, w) = (0, 0, 0, 0, 0, 0, 200, 200);
+        let origin = Loc::new(x, y, z, c, t, s);
+
+        let pxs = tr.open_pixels(origin, h, w).unwrap();
+
+        let data = match pxs {
+            PixelSlice::U16(v) => v,
+            _ => vec![],
+        };
+
+        let check_sum = data.into_iter().map(|a| a as u64).sum::<u64>();
+
+        assert_eq!(check_sum, 1);
+    }
 }

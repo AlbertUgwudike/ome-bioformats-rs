@@ -81,7 +81,7 @@ pub enum Tag {
     StripByteCounts = 279,           // Required
     XResolution = 282,               // Required
     YResolution = 283,               // Required
-    PlanarConfiguration = 284,       // --------
+    PlanarConfiguration = 284,       // Required? <---- defualt should be in reader
     ResolutionUnit = 296,            // Required
     ExtraSamples = 338,              // --------
     SampleFormat = 339,              // --------
