@@ -6,7 +6,7 @@ use std::{
 use either::Either::{Left, Right};
 use ome_common_rs::ios::RandomAccessInputStream;
 
-use crate::common::{ByteOrder, Compression, Dim, Metadata};
+use crate::common::{ByteOrder, Compression, Dim, Loc, Metadata};
 
 use crate::format::tiff::{
     Datum,
@@ -323,9 +323,107 @@ impl TiffDecoder {
         Ok(())
     }
 
+    pub fn apply_to_roi_strips<F>(
+        &mut self,
+        origin: Loc,
+        h: u64,
+        w: u64,
+        mut f: F,
+    ) -> io::Result<()>
+    where
+        F: FnMut(&mut [u8], StripDesc) -> io::Result<()>,
+    {
+        let Loc { x, y, z, c, t, s } = origin;
+
+        let ifd = self.nth_ifd(s)?;
+        let iw = self.image_width(&ifd)?;
+        let bits_per_sample = self.bits_per_sample(&ifd)?;
+        let samples_per_pixel = bits_per_sample.len();
+        let bytes_per_sample = (bits_per_sample[c as usize] / 8) as usize;
+        let is_chunky = self.planar_configuration(&ifd)? == 1;
+        let rows_per_strip = self.rows_per_strip(&ifd)? as u64;
+        let n_strips = self.strip_offsets(&ifd)?.len() as u64;
+
+        let bytes_per_pixel = if is_chunky {
+            // Chunky configuration, 'c' samples per pixel
+            bits_per_sample.iter().map(|a| *a as u64).sum::<u64>() / 8
+        } else {
+            // Planar configuration, one sample per pixel
+            *bits_per_sample
+                .get(c as usize)
+                .ok_or(Error::other("Invalid c"))? as u64
+                / 8
+        };
+
+        let bytes_per_row = bytes_per_pixel * iw;
+        let rows_to_skip = if is_chunky {
+            0
+        } else {
+            (0..origin.c - 1).fold(0, |acc, i| {
+                acc + (h * w * bits_per_sample[i as usize] as u64 / 8 * bytes_per_row)
+            })
+        };
+
+        let start_idx = (y + rows_to_skip) / rows_per_strip;
+        let end_idx = (y + h) / rows_per_strip;
+
+        let mut buff = vec![0; (bytes_per_pixel * iw * rows_per_strip) as usize];
+        // let mut out = Vec::with_capacity((h * w * bytes_per_pixel) as usize);
+
+        for strip_idx in start_idx..end_idx + 1 {
+            // Calculate start/end indexes into image rows
+            let s_idx = (strip_idx * rows_per_strip) as usize;
+            let e_idx = ((strip_idx + 1) * rows_per_strip) as usize;
+
+            // Calculate start/end indices into a vector of strip rows
+            let lower_idx = std::cmp::max(s_idx, y as usize) - s_idx;
+            let upper_idx = std::cmp::min(e_idx, (y + h) as usize) - s_idx;
+
+            // Chunk and change
+            let lower_col = (bytes_per_pixel * x) as usize;
+            let upper_col = lower_col + (bytes_per_pixel * w) as usize;
+
+            let expected_bytes = if strip_idx + 1 == n_strips {
+                bytes_per_pixel * iw * ((y + h) % rows_per_strip)
+            } else {
+                bytes_per_pixel * iw * rows_per_strip
+            };
+
+            self.read_strip(&ifd, strip_idx, &mut buff, expected_bytes)?;
+
+            let sd = StripDesc {
+                bytes_per_row: bytes_per_row as usize,
+                bytes_per_sample,
+                samples_per_pixel,
+                strip_idx: strip_idx as usize,
+                is_chunky,
+                lower_idx,
+                upper_idx,
+                lower_col,
+                upper_col,
+            };
+
+            f(&mut buff, sd)?;
+        }
+
+        Ok(())
+    }
+
     pub fn is_big_tiff(&self) -> bool {
         self.is_big_tiff
     }
+}
+
+pub struct StripDesc {
+    pub bytes_per_row: usize,
+    pub bytes_per_sample: usize,
+    pub samples_per_pixel: usize,
+    pub strip_idx: usize,
+    pub is_chunky: bool,
+    pub lower_idx: usize,
+    pub upper_idx: usize,
+    pub lower_col: usize,
+    pub upper_col: usize,
 }
 
 #[cfg(test)]

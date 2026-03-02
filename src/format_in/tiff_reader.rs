@@ -1,7 +1,7 @@
-use std::io::{self, Error};
+use std::io::{self};
 
 use super::FormatReader;
-use crate::common::{Dim, Loc, Metadata};
+use crate::common::{Loc, Metadata};
 use crate::format::tiff::TiffDecoder;
 
 pub struct TiffReader {
@@ -23,84 +23,31 @@ impl FormatReader for TiffReader {
     }
 
     fn open_bytes(&mut self, origin: Loc, h: u64, w: u64) -> io::Result<Vec<u8>> {
-        let Loc { x, y, z, c, t, s } = origin;
+        let mut out = vec![];
 
-        let ifd = self.decoder.nth_ifd(s)?;
-        let iw = self.decoder.image_width(&ifd)?;
-        let bits_per_sample = self.decoder.bits_per_sample(&ifd)?;
-        let samples_per_pixel = bits_per_sample.len();
-        let bytes_per_sample = (bits_per_sample[c as usize] / 8) as usize;
-        let is_chunky = self.decoder.planar_configuration(&ifd)? == 1;
-        let rows_per_strip = self.decoder.rows_per_strip(&ifd)? as u64;
-        let n_strips = self.decoder.strip_offsets(&ifd)?.len() as u64;
-
-        let bytes_per_pixel = if is_chunky {
-            // Chunky configuration, 'c' samples per pixel
-            bits_per_sample.into_iter().map(|a| a as u64).sum::<u64>() / 8
-        } else {
-            // Planar configuration, one sample per pixel
-            *bits_per_sample
-                .get(c as usize)
-                .ok_or(Error::other("Invalid c"))? as u64
-                / 8
-        };
-
-        let start_idx = y / rows_per_strip;
-        let end_idx = (y + h) / rows_per_strip;
-
-        let mut buff = vec![0; (bytes_per_pixel * iw * rows_per_strip) as usize];
-        let mut out = Vec::with_capacity((h * w * bytes_per_pixel) as usize);
-
-        for strip_idx in start_idx..end_idx + 1 {
-            // Calculate start/end indexes into image rows
-            let s_idx = (strip_idx * rows_per_strip) as usize;
-            let e_idx = ((strip_idx + 1) * rows_per_strip) as usize;
-
-            // Calculate start/end indices into a vector of strip rows
-            let lower_idx = std::cmp::max(s_idx, y as usize) - s_idx;
-            let upper_idx = std::cmp::min(e_idx, (y + h) as usize) - s_idx;
-
-            // Chunk and change
-            let bytes_per_row = bytes_per_pixel * iw;
-            let lower_col = (bytes_per_pixel * x) as usize;
-            let upper_col = lower_col + (bytes_per_pixel * w) as usize;
-
-            let expected_bytes = if strip_idx + 1 == n_strips {
-                bytes_per_pixel * iw * ((y + h) % rows_per_strip)
-            } else {
-                bytes_per_pixel * iw * rows_per_strip
-            };
-
-            self.decoder
-                .read_strip(&ifd, strip_idx, &mut buff, expected_bytes)?;
-
-            let rows = buff
-                .chunks_exact(bytes_per_row as usize)
-                .skip(lower_idx)
-                .take(upper_idx - lower_idx)
-                .map(|row| &row[lower_col..upper_col])
-                .flatten()
-                .map(|a| a.to_owned())
-                .collect::<Vec<u8>>();
-
-            let bytes: Vec<u8> = if is_chunky {
-                rows.chunks_exact(bytes_per_sample)
-                    .skip(c as usize)
-                    .step_by(samples_per_pixel)
+        self.decoder
+            .apply_to_roi_strips(origin, h, w, |strip: &mut [u8], sd| {
+                let mut rows = strip
+                    .chunks_exact(sd.bytes_per_row)
+                    .skip(sd.lower_idx)
+                    .take(sd.upper_idx - sd.lower_idx)
+                    .map(|row| &row[sd.lower_col..sd.upper_col])
                     .flatten()
                     .map(|a| a.to_owned())
-                    .collect()
-            } else {
-                rows.chunks_exact(bytes_per_sample)
-                    .skip((c * h * w) as usize)
-                    .take((h * w) as usize)
-                    .flatten()
-                    .map(|a| a.to_owned())
-                    .collect()
-            };
+                    .collect::<Vec<u8>>();
 
-            out.extend_from_slice(&bytes);
-        }
+                if sd.is_chunky {
+                    rows = rows
+                        .chunks_exact(sd.bytes_per_sample)
+                        .skip(origin.c as usize)
+                        .step_by(sd.samples_per_pixel)
+                        .flatten()
+                        .map(|a| a.to_owned())
+                        .collect();
+                }
+
+                Ok(out.extend_from_slice(&rows))
+            })?;
 
         Ok(out)
     }

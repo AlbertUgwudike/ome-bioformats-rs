@@ -102,6 +102,7 @@ impl TiffEncoder {
             let spp = bpp.len() as u16;
             let bytes_per_pixel = bpp.iter().sum::<u16>() as u64;
             let bytes_per_row = dims.w * bytes_per_pixel;
+            let pi = if spp > 0 { 2 } else { 1 };
 
             let rows_per_strip = TiffEncoder::MAX_STRIP_BYTE_COUNT / bytes_per_row as usize;
             let rows_per_strip = std::cmp::max(rows_per_strip, 1);
@@ -123,7 +124,7 @@ impl TiffEncoder {
             self.write_entry(Tag::ImageWidth, Type::SHORT, 1, &width)?;
             self.write_entry(Tag::BitsPerSample, Type::SHORT, spp as u64, &bpp_bytes)?;
             self.write_entry(Tag::Compression, Type::SHORT, 1, &[0, 1])?;
-            self.write_entry(Tag::PhotometricInterpretation, Type::SHORT, 1, &[0, 1])?;
+            self.write_entry(Tag::PhotometricInterpretation, Type::SHORT, 1, &[0, pi])?;
             self.write_entry(Tag::PlanarConfiguration, Type::SHORT, 1, &[0, 1])?;
 
             self.write_entry(
@@ -153,8 +154,8 @@ impl TiffEncoder {
 
             let data_pos = self.ostream.length()? as usize;
             let strip_offsets = (0..strip_count)
-                .map(|i| (data_pos + strip_count * 4 + i * byte_counts[0] as usize) as u32)
-                .collect::<Vec<u32>>();
+                .map(|j| data_pos + strip_count * 4 + j * byte_counts[0] as usize)
+                .collect::<Vec<_>>();
 
             self.write_entry(
                 Tag::StripOffsets,
@@ -162,17 +163,17 @@ impl TiffEncoder {
                 strip_count as u64,
                 &strip_offsets
                     .iter()
-                    .map(|v| v.to_be_bytes())
+                    .map(|v| (*v as u32).to_be_bytes())
                     .flatten()
                     .collect::<Vec<u8>>(),
             )?;
 
             // Write zero pixels
             let mut start = self.ostream.length()?;
-            for i in 0..strip_count {
-                let bytes = vec![0u8; byte_counts[i] as usize];
+            for j in 0..strip_count {
+                let bytes = vec![0u8; byte_counts[j] as usize];
                 self.ostream.write_bytes_exact(&bytes, start)?;
-                start += byte_counts[i] as u64;
+                start += byte_counts[j] as u64;
             }
 
             // Write next_ifd_offset
