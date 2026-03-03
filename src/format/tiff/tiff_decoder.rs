@@ -103,13 +103,13 @@ impl TiffDecoder {
 
             let n_bytes = IFD::size_of(kind, count);
 
-            println!(
-                "TAG: {:<25}  | KIND: {:10}  | COUNT: {:6}  | BYTES: {:4}",
-                tag.to_str(),
-                kind.to_str(),
-                count,
-                n_bytes
-            );
+            // println!(
+            //     "TAG: {:<25}  | KIND: {:10}  | COUNT: {:6}  | BYTES: {:4}",
+            //     tag.to_str(),
+            //     kind.to_str(),
+            //     count,
+            //     n_bytes
+            // );
 
             let offset;
             let threshold = if self.is_big_tiff { 8 } else { 4 };
@@ -120,7 +120,7 @@ impl TiffDecoder {
                 offset = Right(self.read_datum(kind, count)?);
                 self.istream.skip_bytes(threshold - n_bytes)?;
 
-                println!("VALUE: {:?}", offset);
+                // println!("VALUE: {:?}", offset);
             };
 
             entry_vec.push(Entry::new(tag, kind, count, offset))
@@ -298,6 +298,7 @@ impl TiffDecoder {
         expected_bytes: u64,
     ) -> io::Result<()> {
         let strip_offsets = self.strip_offsets(ifd)?;
+
         let offset = strip_offsets
             .get(strip_idx as usize)
             .ok_or(Error::other("Strip offset index out of range"))?;
@@ -359,7 +360,7 @@ impl TiffDecoder {
         };
 
         let start_idx = (origin.y + rows_to_skip) / rows_per_strip;
-        let end_idx = (origin.y + h) / rows_per_strip;
+        let end_idx = (origin.y + rows_to_skip + h - 1) / rows_per_strip;
 
         let mut buff = vec![0; (bytes_per_pixel * iw * rows_per_strip) as usize];
         // let mut out = Vec::with_capacity((h * w * bytes_per_pixel) as usize);

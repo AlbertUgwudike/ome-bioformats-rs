@@ -12,7 +12,7 @@ pub struct TiffInit {
 }
 
 impl TiffInit {
-    fn modify(self) -> io::Result<TiffWriter> {
+    pub fn modify(self) -> io::Result<TiffWriter> {
         // 1. Check file exists
         if !std::fs::exists(&self.file_name)? {
             return Err(Error::other("File not found"));
@@ -26,7 +26,7 @@ impl TiffInit {
         Ok(TiffWriter { encoder, decoder })
     }
 
-    fn create(self) -> TiffBuilder {
+    pub fn create(self) -> TiffBuilder {
         TiffBuilder::new(self.file_name)
     }
 }
@@ -46,23 +46,23 @@ impl TiffBuilder {
         }
     }
 
-    fn bits_per_pixel(mut self, series: usize, value: Vec<u16>) -> Self {
+    pub fn bits_per_pixel(mut self, series: usize, value: Vec<u16>) -> Self {
         self.metadata.set_bits_per_pixel(series, value);
         self
     }
 
-    fn dimensions(mut self, series: usize, h: u64, w: u64) -> Self {
+    pub fn dimensions(mut self, series: usize, h: u64, w: u64) -> Self {
         self.metadata.set_dimensions(series, h, w, 1);
         self
     }
 
-    fn big_tiff(mut self, is_big_tiff: bool) -> Self {
+    pub fn big_tiff(mut self, is_big_tiff: bool) -> Self {
         self.is_big_tiff = is_big_tiff;
         self
     }
 
     // Will be useful for rosetta
-    fn set_metadata(mut self, metadata: Metadata) -> Self {
+    pub fn set_metadata(mut self, metadata: Metadata) -> Self {
         self.metadata = metadata;
         self
     }
@@ -74,7 +74,7 @@ impl TiffBuilder {
         Ok(())
     }
 
-    fn build(self) -> io::Result<TiffWriter> {
+    pub fn build(self) -> io::Result<TiffWriter> {
         self.validate()?;
 
         let encoder = TiffEncoder::create(self.file_name.clone(), self.metadata, self.is_big_tiff)?;
@@ -95,13 +95,13 @@ impl TiffWriter {
     }
 }
 
-fn strided_copy(dest: &mut [u8], src: &[u8], chunck_size: usize, stride: usize) {
+fn strided_copy(dest: &mut [u8], src: &[u8], chunk_size: usize, stride: usize) {
     let mut k = 0;
-    dest.chunks_exact_mut(chunck_size)
+    dest.chunks_exact_mut(chunk_size)
         .step_by(stride)
         .for_each(|s| {
-            s.copy_from_slice(&src[k..k + chunck_size]);
-            k += chunck_size;
+            s.copy_from_slice(&src[k..k + chunk_size]);
+            k += chunk_size;
         });
 }
 

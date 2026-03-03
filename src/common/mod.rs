@@ -2,7 +2,7 @@ pub mod compression;
 
 pub use compression::Compression;
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct Loc {
     pub x: u64,
     pub y: u64,
@@ -104,7 +104,7 @@ impl Metadata {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PixelSlice {
     U8(Vec<u8>),
     U16(Vec<u16>),
