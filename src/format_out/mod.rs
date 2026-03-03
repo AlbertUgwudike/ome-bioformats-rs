@@ -1,6 +1,6 @@
-use std::io;
+use std::io::{self, Error};
 
-use crate::common::{Loc, Metadata, PixelSlice};
+use crate::common::{Loc, PixelSlice};
 
 pub mod tiff_writer;
 
@@ -14,6 +14,15 @@ pub trait FormatWriter {
 
     // Write rectangular portion of image data to given location
     fn write_pixels(&mut self, pixels: PixelSlice, origin: Loc, h: u64, w: u64) -> io::Result<()> {
-        todo!()
+        if pixels.len() != (h * w) as usize {
+            return Err(Error::other("Invalid write dimensions for pixel slice"));
+        }
+
+        let mut bytes = vec![0u8; pixels.bytes_len()];
+        pixels.to_be_bytes(&mut bytes);
+
+        self.write_bytes(bytes, origin, h, w)?;
+
+        Ok(())
     }
 }

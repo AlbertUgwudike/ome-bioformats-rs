@@ -2,11 +2,6 @@ pub mod compression;
 
 pub use compression::Compression;
 
-use std::collections::HashMap;
-
-pub type ChannelSeries = (usize, usize);
-pub type ChannelSeriesMap<T> = HashMap<ChannelSeries, T>;
-
 #[derive(Clone, Copy, Default)]
 pub struct Loc {
     pub x: u64,
@@ -20,10 +15,6 @@ pub struct Loc {
 impl Loc {
     pub fn new(x: u64, y: u64, z: u64, c: u64, t: u64, s: u64) -> Self {
         Loc { x, y, z, c, t, s }
-    }
-
-    pub fn channel_series(&self) -> ChannelSeries {
-        (self.c as usize, self.s as usize)
     }
 }
 
@@ -118,4 +109,32 @@ pub enum PixelSlice {
     U8(Vec<u8>),
     U16(Vec<u16>),
     // and so on ...
+}
+
+impl PixelSlice {
+    pub fn to_be_bytes(&self, buff: &mut [u8]) {
+        let bytes = match self {
+            PixelSlice::U8(v) => v,
+            PixelSlice::U16(v) => &v
+                .iter()
+                .map(|u| u.to_be_bytes())
+                .flatten()
+                .collect::<Vec<u8>>(),
+        };
+        buff.copy_from_slice(&bytes);
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            PixelSlice::U8(v) => v.len(),
+            PixelSlice::U16(v) => v.len(),
+        }
+    }
+
+    pub fn bytes_len(&self) -> usize {
+        match self {
+            PixelSlice::U8(v) => v.len(),
+            PixelSlice::U16(v) => 2 * v.len(),
+        }
+    }
 }

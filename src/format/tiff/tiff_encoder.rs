@@ -5,12 +5,9 @@ use std::{
 
 use ome_common_rs::ios::RandomAccessOutputStream;
 
-use crate::common::{ByteOrder, Compression, Metadata};
+use crate::common::Metadata;
 
-use crate::format::tiff::{
-    Datum,
-    ifd::{Entry, IFD, Tag, Type},
-};
+use crate::format::tiff::ifd::{Tag, Type};
 
 pub struct TiffEncoder {
     ostream: RandomAccessOutputStream<File>,
@@ -250,7 +247,7 @@ impl TiffEncoder {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
     #[test]
     fn intialise_encoder() {}

@@ -323,23 +323,17 @@ impl TiffDecoder {
         Ok(())
     }
 
-    pub fn apply_to_roi_strips<F>(
-        &mut self,
-        origin: Loc,
-        h: u64,
-        w: u64,
-        mut f: F,
-    ) -> io::Result<()>
+    pub fn apply_roi_strips<F>(&mut self, origin: Loc, h: u64, w: u64, mut f: F) -> io::Result<()>
     where
         F: FnMut(&mut [u8], StripDesc) -> io::Result<()>,
     {
-        let Loc { x, y, z, c, t, s } = origin;
+        // let Loc { x, y, z, c, t, s } = origin;
 
-        let ifd = self.nth_ifd(s)?;
+        let ifd = self.nth_ifd(origin.s)?;
         let iw = self.image_width(&ifd)?;
         let bits_per_sample = self.bits_per_sample(&ifd)?;
         let samples_per_pixel = bits_per_sample.len();
-        let bytes_per_sample = (bits_per_sample[c as usize] / 8) as usize;
+        let bytes_per_sample = (bits_per_sample[origin.c as usize] / 8) as usize;
         let is_chunky = self.planar_configuration(&ifd)? == 1;
         let rows_per_strip = self.rows_per_strip(&ifd)? as u64;
         let n_strips = self.strip_offsets(&ifd)?.len() as u64;
@@ -350,7 +344,7 @@ impl TiffDecoder {
         } else {
             // Planar configuration, one sample per pixel
             *bits_per_sample
-                .get(c as usize)
+                .get(origin.c as usize)
                 .ok_or(Error::other("Invalid c"))? as u64
                 / 8
         };
@@ -364,8 +358,8 @@ impl TiffDecoder {
             })
         };
 
-        let start_idx = (y + rows_to_skip) / rows_per_strip;
-        let end_idx = (y + h) / rows_per_strip;
+        let start_idx = (origin.y + rows_to_skip) / rows_per_strip;
+        let end_idx = (origin.y + h) / rows_per_strip;
 
         let mut buff = vec![0; (bytes_per_pixel * iw * rows_per_strip) as usize];
         // let mut out = Vec::with_capacity((h * w * bytes_per_pixel) as usize);
@@ -376,15 +370,15 @@ impl TiffDecoder {
             let e_idx = ((strip_idx + 1) * rows_per_strip) as usize;
 
             // Calculate start/end indices into a vector of strip rows
-            let lower_idx = std::cmp::max(s_idx, y as usize) - s_idx;
-            let upper_idx = std::cmp::min(e_idx, (y + h) as usize) - s_idx;
+            let lower_row = std::cmp::max(s_idx, origin.y as usize) - s_idx;
+            let upper_row = std::cmp::min(e_idx, (origin.y + h) as usize) - s_idx;
 
             // Chunk and change
-            let lower_col = (bytes_per_pixel * x) as usize;
+            let lower_col = (bytes_per_pixel * origin.x) as usize;
             let upper_col = lower_col + (bytes_per_pixel * w) as usize;
 
             let expected_bytes = if strip_idx + 1 == n_strips {
-                bytes_per_pixel * iw * ((y + h) % rows_per_strip)
+                bytes_per_pixel * iw * ((origin.y + h) % rows_per_strip)
             } else {
                 bytes_per_pixel * iw * rows_per_strip
             };
@@ -397,8 +391,8 @@ impl TiffDecoder {
                 samples_per_pixel,
                 strip_idx: strip_idx as usize,
                 is_chunky,
-                lower_idx,
-                upper_idx,
+                lower_row,
+                upper_row,
                 lower_col,
                 upper_col,
             };
@@ -420,8 +414,8 @@ pub struct StripDesc {
     pub samples_per_pixel: usize,
     pub strip_idx: usize,
     pub is_chunky: bool,
-    pub lower_idx: usize,
-    pub upper_idx: usize,
+    pub lower_row: usize,
+    pub upper_row: usize,
     pub lower_col: usize,
     pub upper_col: usize,
 }

@@ -1,8 +1,8 @@
 use std::io::{self, Error};
 
 use crate::{
-    common::{ChannelSeries, Loc, Metadata},
-    format::tiff::{TiffDecoder, TiffEncoder, ifd::IFD},
+    common::{Loc, Metadata},
+    format::tiff::{TiffDecoder, TiffEncoder},
 };
 
 use super::FormatWriter;
@@ -95,38 +95,55 @@ impl TiffWriter {
     }
 }
 
+fn strided_copy(dest: &mut [u8], src: &[u8], chunck_size: usize, stride: usize) {
+    let mut k = 0;
+    dest.chunks_exact_mut(chunck_size)
+        .step_by(stride)
+        .for_each(|s| {
+            s.copy_from_slice(&src[k..k + chunck_size]);
+            k += chunck_size;
+        });
+}
+
 impl FormatWriter for TiffWriter {
     fn write_bytes(&mut self, bytes: Vec<u8>, origin: Loc, h: u64, w: u64) -> std::io::Result<()> {
         let ifd = self.decoder.nth_ifd(origin.s)?;
         let strip_offsets = self.decoder.strip_offsets(&ifd)?;
 
+        // declared here as we need overall row_idx (i.e. increments between strips)
         let mut src_row_idx = 0;
 
-        self.decoder
-            .apply_to_roi_strips(origin, h, w, |strip, sd| {
-                let bytes_per_pixel = sd.bytes_per_sample * sd.samples_per_pixel;
-                let bytes_per_src_row = bytes_per_pixel * w as usize;
+        self.decoder.apply_roi_strips(origin, h, w, |strip, sd| {
+            let bytes_per_src_row = sd.bytes_per_sample * w as usize;
 
-                strip
-                    .chunks_exact_mut(sd.bytes_per_row as usize)
-                    .skip(sd.lower_idx)
-                    .take(sd.upper_idx - sd.lower_idx)
-                    .for_each(|row| {
-                        let lower_src_col = src_row_idx * bytes_per_src_row as usize;
-                        let upper_src_col = (src_row_idx + 1) * bytes_per_src_row as usize;
-                        let src_row = &bytes[lower_src_col..upper_src_col];
+            strip
+                .chunks_exact_mut(sd.bytes_per_row as usize)
+                .skip(sd.lower_row)
+                .take(sd.upper_row - sd.lower_row)
+                .for_each(|row| {
+                    let lower_src_col = src_row_idx * bytes_per_src_row as usize;
+                    let upper_src_col = (src_row_idx + 1) * bytes_per_src_row as usize;
+                    let src_row = &bytes[lower_src_col..upper_src_col];
 
-                        // TODO - Implement strided write
+                    if sd.is_chunky {
+                        let skip = sd.bytes_per_sample * origin.c as usize;
+                        let dest = &mut row[sd.lower_col + skip..sd.upper_col];
+                        let chunk_size = sd.bytes_per_sample;
+                        let stride = sd.samples_per_pixel;
+                        strided_copy(dest, src_row, chunk_size, stride);
+                    } else {
                         row[sd.lower_col..sd.upper_col].copy_from_slice(src_row);
-                        src_row_idx += 1;
-                    });
+                    }
 
-                let offset = strip_offsets
-                    .get(sd.strip_idx)
-                    .ok_or(Error::other("Strip offset index out of range"))?;
+                    src_row_idx += 1;
+                });
 
-                self.encoder.write_strip(*offset, &strip)
-            })?;
+            let offset = strip_offsets
+                .get(sd.strip_idx)
+                .ok_or(Error::other("Strip offset index out of range"))?;
+
+            self.encoder.write_strip(*offset, &strip)
+        })?;
 
         Ok(())
     }
@@ -142,7 +159,7 @@ mod tests {
         // let writer = TiffWriter::new("assets/one.tiff".into()).modify().unwrap();
 
         // Example of creating brand new tiff from scratch
-        let mut writer = TiffWriter::new("assets/two.tiff".into())
+        let mut writer = TiffWriter::new("assets/three.tiff".into())
             .create()
             .dimensions(0, 10, 10)
             .dimensions(1, 500, 500)
@@ -158,20 +175,18 @@ mod tests {
             .unwrap();
 
         let mut g = |r: u64, s: u64| {
-            let bytes = vec![[0, 255, 255]; ((r * r) / 25) as usize]
-                .as_flattened()
-                .to_vec();
-            let origin = Loc::new((r * 2) / 5, (r * 2) / 5, 0, 0, 0, s);
+            let bytes = vec![255; ((r * r) / 25) as usize];
+            let origin = Loc::new((r * 2) / 5, (r * 2) / 5, 0, 1, 0, s);
             writer.write_bytes(bytes, origin, r / 5, r / 5).unwrap();
         };
 
         g(10, 0);
         g(500, 1);
         g(1000, 2);
-        // g(10000, 3);
-        // g(50000, 4);
+        g(10000, 3);
+        g(50000, 4);
 
-        assert!(2 == 1)
+        // assert!(2 == 1)
 
         // Example for use during format conversion
         // 'metadata' could come from some other format reader
