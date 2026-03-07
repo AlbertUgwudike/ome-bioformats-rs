@@ -159,7 +159,8 @@ mod tests {
         // let writer = TiffWriter::new("assets/one.tiff".into()).modify().unwrap();
 
         // Example of creating brand new tiff from scratch
-        let mut writer = TiffWriter::new("assets/three.tiff".into())
+        let input_file = "assets/three.tiff";
+        let mut writer = TiffWriter::new(input_file.into())
             .create()
             .dimensions(0, 10, 10)
             .dimensions(1, 500, 500)
@@ -186,7 +187,7 @@ mod tests {
         g(10000, 3);
         g(50000, 4);
 
-        // assert!(2 == 1)
+        std::fs::remove_file(input_file).unwrap();
 
         // Example for use during format conversion
         // 'metadata' could come from some other format reader

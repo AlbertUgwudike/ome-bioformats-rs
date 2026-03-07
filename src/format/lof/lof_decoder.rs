@@ -183,8 +183,5 @@ mod tests {
     #[test]
     fn intialise_decoder() {
         let tp = LofDecoder::new("/Users/albert/Downloads/DAB test brain 1.lof".into()).unwrap();
-        println!("{:?}", tp.metadata().unwrap());
-
-        assert!(1 == 2)
     }
 }
