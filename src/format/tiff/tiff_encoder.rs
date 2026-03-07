@@ -97,9 +97,9 @@ impl TiffEncoder {
                 .collect::<Vec<u8>>();
 
             let spp = bpp.len() as u16;
-            let bytes_per_pixel = bpp.iter().sum::<u16>() as u64;
+            let bytes_per_pixel = bpp.iter().sum::<u16>() as u64 / 8;
             let bytes_per_row = dims.w * bytes_per_pixel;
-            let pi = if spp > 0 { 2 } else { 1 };
+            let pi = if spp > 1 { 2 } else { 1 };
 
             let rows_per_strip = TiffEncoder::MAX_STRIP_BYTE_COUNT / bytes_per_row as usize;
             let rows_per_strip = std::cmp::max(rows_per_strip, 1);
@@ -108,12 +108,17 @@ impl TiffEncoder {
             let rows_in_last = dims.h % rows_per_strip as u64;
             let strip_count = dims.h.div_ceil(rows_per_strip as u64) as usize;
 
-            println!("SC: {:?}, BIL: {:?}", strip_count, rows_in_last);
+            println!(
+                "SC: {:?}, BIL: {:?}, BPS: {:?}",
+                strip_count, rows_in_last, bytes_per_strip
+            );
 
-            let mut byte_counts = vec![bytes_per_strip as u16; strip_count];
+            println!("W: {:?}, BPP: {:?}", dims.w, bytes_per_pixel);
+
+            let mut byte_counts = vec![bytes_per_strip as u32; strip_count];
 
             if rows_in_last != 0 {
-                byte_counts[strip_count - 1] = (rows_in_last * bytes_per_row) as u16;
+                byte_counts[strip_count - 1] = (rows_in_last * bytes_per_row) as u32;
             }
 
             // HERE: write in IFDs + data sequentially
@@ -126,7 +131,7 @@ impl TiffEncoder {
 
             self.write_entry(
                 Tag::StripByteCounts,
-                Type::SHORT,
+                Type::LONG,
                 strip_count as u64,
                 &byte_counts
                     .iter()
@@ -231,7 +236,7 @@ impl TiffEncoder {
     const HEADER_SIZE: u64 = 8;
     const BIG_HEADR_SIZE: u64 = 16;
     const ENTRY_COUNT: u64 = 13; // <- See ifd.rs, TODO: add support for custom tags?
-    const MAX_STRIP_BYTE_COUNT: usize = 65536;
+    const MAX_STRIP_BYTE_COUNT: usize = 500000;
 
     fn ifd_size(is_bt: bool) -> u64 {
         let entry_count_bytes = if is_bt { 8 } else { 2 };

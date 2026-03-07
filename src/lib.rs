@@ -7,7 +7,7 @@ pub mod format_out;
 mod tests {
     use crate::{
         common::Loc,
-        format_in::{FormatReader, tiff_reader::TiffReader},
+        format_in::{FormatReader, lof_reader::LofReader, tiff_reader::TiffReader},
         format_out::{FormatWriter, tiff_writer::TiffWriter},
     };
 
@@ -49,5 +49,38 @@ mod tests {
 
         // clean up
         std::fs::remove_file(output_file).unwrap();
+    }
+
+    #[test]
+    fn lof_to_tiff() {
+        // let input_file = "/Users/albert/Downloads/DAB test brain 1.lof";
+        let input_file = "/Users/albert/Downloads/Saline3 brain 2.lof";
+        let output_file = "assets/dab.tiff";
+
+        let mut reader = LofReader::new(input_file.into()).unwrap();
+        let metadata = reader.metadata();
+
+        let mut writer = TiffWriter::new(output_file.into())
+            .create()
+            .set_metadata(metadata.clone())
+            .build()
+            .unwrap();
+
+        let dims = metadata.dimensions(0).unwrap().clone();
+
+        for series in 0..metadata.series_count() {
+            for chn in 0..dims.d {
+                for r in 0..dims.h / 100 {
+                    let origin = Loc::new(0, r * 100, 0, chn, 0, series as u64);
+                    let pixels = reader.open_pixels(origin, 100, dims.w).unwrap();
+                    writer.write_pixels(pixels, origin, 100, dims.w).unwrap();
+                }
+            }
+        }
+
+        assert!(1 == 2)
+
+        // clean up
+        // std::fs::remove_file(output_file).unwrap();
     }
 }

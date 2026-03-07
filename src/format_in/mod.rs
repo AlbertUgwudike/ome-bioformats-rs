@@ -1,3 +1,4 @@
+pub mod lof_reader;
 pub mod tiff_reader;
 
 use std::io;
