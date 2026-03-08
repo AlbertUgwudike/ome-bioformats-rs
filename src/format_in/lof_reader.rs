@@ -47,15 +47,3 @@ impl FormatReader for LofReader {
         Ok(bytes)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use std::{
-        fmt::Display,
-        time::{SystemTime, UNIX_EPOCH},
-    };
-
-    use crate::format_in::PixelSlice;
-
-    use super::*;
-}

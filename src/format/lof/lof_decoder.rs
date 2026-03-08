@@ -182,6 +182,6 @@ mod tests {
 
     #[test]
     fn intialise_decoder() {
-        let tp = LofDecoder::new("/Users/albert/Downloads/DAB test brain 1.lof".into()).unwrap();
+        LofDecoder::new("/Users/albert/Downloads/DAB test brain 1.lof".into()).unwrap();
     }
 }
