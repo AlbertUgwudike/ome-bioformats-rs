@@ -175,13 +175,3 @@ impl LofDecoder {
     const LOF_MAGIC_BYTE: u8 = 112;
     const LOF_MEMORY_BYTE: u8 = 42;
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn intialise_decoder() {
-        LofDecoder::new("/Users/albert/Downloads/DAB test brain 1.lof".into()).unwrap();
-    }
-}

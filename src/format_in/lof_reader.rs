@@ -22,24 +22,23 @@ impl FormatReader for LofReader {
         &self.metadata
     }
 
-    fn open_bytes(&mut self, origin: Loc, h: u64, w: u64) -> io::Result<Vec<u8>> {
-        let bits_per_pixel = self.metadata.bits_per_pixel(origin.s as usize).unwrap();
-        let dims = self.metadata.dimensions(origin.s as usize).unwrap();
+    fn open_bytes(&mut self, loc: Loc, df: u64) -> io::Result<Vec<u8>> {
+        let bits_per_pixel = self.metadata.bits_per_pixel(loc.s as usize).unwrap();
+        let dims = self.metadata.dimensions(loc.s as usize).unwrap();
         let bytes_per_pixel = bits_per_pixel.iter().map(|&n| n as u64).sum::<u64>() / 8;
 
         let pixels_per_plane = dims.h * dims.w;
 
-        let bytes_to_skip =
-            bytes_per_pixel * (origin.s * pixels_per_plane + origin.y * dims.w + origin.x);
+        let bytes_to_skip = bytes_per_pixel * (loc.s * pixels_per_plane + loc.y * dims.w + loc.x);
 
-        let n_bytes_to_read = bytes_per_pixel * h * w;
+        let n_bytes_to_read = bytes_per_pixel * loc.h * loc.w;
 
         let mut bytes = vec![0u8; n_bytes_to_read as usize];
         self.decoder.read_pixel_bytes(bytes_to_skip, &mut bytes)?;
 
         let bytes = bytes
             .into_iter()
-            .skip(origin.c as usize)
+            .skip(loc.c as usize)
             .step_by(bytes_per_pixel as usize)
             .map(|a| a.to_owned())
             .collect();

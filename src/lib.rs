@@ -14,9 +14,9 @@ pub fn convert(mut reader: impl FormatReader, mut writer: impl FormatWriter) {
 
         for chn in 0..dims.d {
             let mut f_write = |sr, rc| {
-                let origin = Loc::new(0, sr, 0, chn, 0, series as u64);
-                let pixels = reader.open_pixels(origin, rc, dims.w).unwrap();
-                writer.write_pixels(pixels, origin, rc, dims.w).unwrap();
+                let loc = Loc::new(0, sr, 0, chn, 0, series as u64, rc, dims.w);
+                let pixels = reader.open_pixels(loc, 1).unwrap();
+                writer.write_pixels(pixels, loc).unwrap();
             };
 
             for r in 0..dims.h / 100 {
@@ -55,9 +55,9 @@ mod tests {
 
         for chn in 0..dims.d {
             for r in 0..dims.h {
-                let origin = Loc::new(0, r, 0, chn, 0, 0);
-                let pixels = reader.open_pixels(origin, 1, dims.w).unwrap();
-                writer.write_pixels(pixels, origin, 1, dims.w).unwrap();
+                let loc = Loc::new(0, r, 0, chn, 0, 0, 1, dims.w);
+                let pixels = reader.open_pixels(loc, 1).unwrap();
+                writer.write_pixels(pixels, loc).unwrap();
             }
         }
 
@@ -65,9 +65,9 @@ mod tests {
 
         for chn in 0..dims.d {
             for r in 0..dims.h {
-                let origin = Loc::new(0, r, 0, chn, 0, 0);
-                let pixels_input = reader.open_pixels(origin, 1, dims.w).unwrap();
-                let pixels_output = reader_output.open_pixels(origin, 1, dims.w).unwrap();
+                let origin = Loc::new(0, r, 0, chn, 0, 0, 1, dims.w);
+                let pixels_input = reader.open_pixels(origin, 1).unwrap();
+                let pixels_output = reader_output.open_pixels(origin, 1).unwrap();
 
                 assert_eq!(pixels_input, pixels_output)
             }

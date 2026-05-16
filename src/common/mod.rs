@@ -1,5 +1,7 @@
 pub mod compression;
 
+use std::io;
+
 pub use compression::Compression;
 
 #[derive(Clone, Copy, Default, Debug)]
@@ -10,11 +12,26 @@ pub struct Loc {
     pub c: u64,
     pub t: u64,
     pub s: u64,
+    pub h: u64,
+    pub w: u64,
 }
 
 impl Loc {
-    pub fn new(x: u64, y: u64, z: u64, c: u64, t: u64, s: u64) -> Self {
-        Loc { x, y, z, c, t, s }
+    pub fn new(x: u64, y: u64, z: u64, c: u64, t: u64, s: u64, h: u64, w: u64) -> Self {
+        Loc {
+            x,
+            y,
+            z,
+            c,
+            t,
+            s,
+            h,
+            w,
+        }
+    }
+
+    pub fn origin() -> Self {
+        Loc::new(0, 0, 0, 0, 0, 0, 0, 0)
     }
 }
 
@@ -108,6 +125,7 @@ impl Metadata {
 pub enum PixelSlice {
     U8(Vec<u8>),
     U16(Vec<u16>),
+    U32(Vec<u32>),
     // and so on ...
 }
 
@@ -120,6 +138,11 @@ impl PixelSlice {
                 .map(|u| u.to_be_bytes())
                 .flatten()
                 .collect::<Vec<u8>>(),
+            PixelSlice::U32(v) => &v
+                .iter()
+                .map(|u| u.to_be_bytes())
+                .flatten()
+                .collect::<Vec<u8>>(),
         };
         buff.copy_from_slice(&bytes);
     }
@@ -128,6 +151,7 @@ impl PixelSlice {
         match self {
             PixelSlice::U8(v) => v.len(),
             PixelSlice::U16(v) => v.len(),
+            PixelSlice::U32(v) => v.len(),
         }
     }
 
@@ -135,6 +159,49 @@ impl PixelSlice {
         match self {
             PixelSlice::U8(v) => v.len(),
             PixelSlice::U16(v) => 2 * v.len(),
+            PixelSlice::U32(v) => 4 * v.len(),
+        }
+    }
+
+    pub fn to_u16vec(&self) -> Vec<u16> {
+        match self {
+            PixelSlice::U8(v) => v.iter().map(|a| *a as u16).collect(),
+            PixelSlice::U16(v) => v.to_vec(),
+            PixelSlice::U32(v) => v
+                .iter()
+                .map(|a| std::cmp::min(u16::MAX as u32, *a) as u16)
+                .collect(),
+        }
+    }
+
+    pub fn interpret_bytes(
+        bbp: u16,
+        byte_order: ByteOrder,
+        bytes: &[u8],
+    ) -> io::Result<PixelSlice> {
+        match bbp {
+            8 => Ok(PixelSlice::U8(bytes.to_vec())),
+            16 => Ok(PixelSlice::U16(
+                bytes
+                    .chunks_exact(2)
+                    .map(|a| match byte_order {
+                        ByteOrder::LE => u16::from_le_bytes([a[0], a[1]]),
+                        ByteOrder::BE => u16::from_be_bytes([a[0], a[1]]),
+                    })
+                    .collect(),
+            )),
+            32 => Ok(PixelSlice::U32(
+                bytes
+                    .chunks_exact(4)
+                    .map(|a| match byte_order {
+                        ByteOrder::LE => u32::from_le_bytes([a[0], a[1], a[2], a[3]]),
+                        ByteOrder::BE => u32::from_be_bytes([a[0], a[1], a[2], a[3]]),
+                    })
+                    .collect(),
+            )),
+            n => Err(io::Error::other(format!(
+                "Unsupported PixelSlice Format {n}"
+            ))),
         }
     }
 }

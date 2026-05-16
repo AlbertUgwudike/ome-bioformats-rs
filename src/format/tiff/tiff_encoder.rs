@@ -57,7 +57,6 @@ impl TiffEncoder {
 
     fn write_empty_data(&mut self) -> io::Result<()> {
         let ifd_size_bytes = TiffEncoder::ifd_size(self.is_big_tiff);
-        // let mut curr_ifd_offset = self.first_ifd_offset();
 
         let n_ifds = self.metadata.series_count();
         for i in 0..n_ifds {
@@ -67,9 +66,6 @@ impl TiffEncoder {
             // HERE: Allocate (write) the space for the IFD (i.e. initialise data pointer)
             self.ostream
                 .write_bytes_exact(&vec![0; ifd_size_bytes as usize], next_ifd_pos)?;
-
-            // THEN: we need to initlaise the data pointer, data written imediately after IFD
-            // let mut data_pos = (curr_ifd_offset + ifd_size_bytes) as usize;
 
             if self.is_big_tiff {
                 self.ostream.write_u64(TiffEncoder::ENTRY_COUNT)?;

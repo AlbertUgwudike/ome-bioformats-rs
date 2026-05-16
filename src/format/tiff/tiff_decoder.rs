@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{self, Error},
+    ops::Range,
 };
 
 use either::Either::{Left, Right};
@@ -92,8 +93,7 @@ impl TiffDecoder {
 
         for _ in 0..n_entries {
             let tag_short = self.istream.read_u16()?;
-            let tag = Tag::from_short(tag_short)
-                .ok_or(Error::other(format!("Failed Parse Tag: {tag_short}")))?;
+            let tag = Tag::from_short(tag_short);
 
             let kind_short = self.istream.read_u16()?;
             let kind = Type::from_short(kind_short)
@@ -324,18 +324,13 @@ impl TiffDecoder {
         Ok(())
     }
 
-    pub fn apply_roi_strips<F>(&mut self, origin: Loc, h: u64, w: u64, mut f: F) -> io::Result<()>
-    where
-        F: FnMut(&mut [u8], StripDesc) -> io::Result<()>,
-    {
-        // let Loc { x, y, z, c, t, s } = origin;
-
-        let ifd = self.nth_ifd(origin.s)?;
+    pub fn region_decoder(&mut self, loc: Loc, df: u64) -> io::Result<TiffRegionDecoder> {
+        let ifd = self.nth_ifd(loc.s)?;
         let iw = self.image_width(&ifd)?;
         let bits_per_sample = self.bits_per_sample(&ifd)?;
         let samples_per_pixel = bits_per_sample.len();
-        let bytes_per_sample = (bits_per_sample[origin.c as usize] / 8) as usize;
-        let is_chunky = self.planar_configuration(&ifd)? == 1;
+        let bytes_per_sample = (bits_per_sample[loc.c as usize] / 8) as usize;
+        let is_chunky = self.planar_configuration(&ifd).unwrap_or(1) == 1;
         let rows_per_strip = self.rows_per_strip(&ifd)? as u64;
         let n_strips = self.strip_offsets(&ifd)?.len() as u64;
 
@@ -345,7 +340,7 @@ impl TiffDecoder {
         } else {
             // Planar configuration, one sample per pixel
             *bits_per_sample
-                .get(origin.c as usize)
+                .get(loc.c as usize)
                 .ok_or(Error::other("Invalid c"))? as u64
                 / 8
         };
@@ -354,51 +349,47 @@ impl TiffDecoder {
         let rows_to_skip = if is_chunky {
             0
         } else {
-            (0..origin.c - 1).fold(0, |acc, i| {
-                acc + (h * w * bits_per_sample[i as usize] as u64 / 8 * bytes_per_row)
+            (0..loc.c - 1).fold(0, |acc, i| {
+                acc + (loc.h * loc.w * bits_per_sample[i as usize] as u64 / 8 * bytes_per_row)
             })
         };
 
-        let start_idx = (origin.y + rows_to_skip) / rows_per_strip;
-        let end_idx = (origin.y + rows_to_skip + h - 1) / rows_per_strip;
+        let start_idx = (loc.y + rows_to_skip) / rows_per_strip;
+        let end_idx = (loc.y + rows_to_skip + loc.h - 1) / rows_per_strip;
 
-        let mut buff = vec![0; (bytes_per_pixel * iw * rows_per_strip) as usize];
-        // let mut out = Vec::with_capacity((h * w * bytes_per_pixel) as usize);
-
-        for strip_idx in start_idx..end_idx + 1 {
-            // Calculate start/end indexes into image rows
-            let s_idx = (strip_idx * rows_per_strip) as usize;
-            let e_idx = ((strip_idx + 1) * rows_per_strip) as usize;
-
-            // Calculate start/end indices into a vector of strip rows
-            let lower_row = std::cmp::max(s_idx, origin.y as usize) - s_idx;
-            let upper_row = std::cmp::min(e_idx, (origin.y + h) as usize) - s_idx;
-
-            // Chunk and change
-            let lower_col = (bytes_per_pixel * origin.x) as usize;
-            let upper_col = lower_col + (bytes_per_pixel * w) as usize;
-
-            let expected_bytes = if strip_idx + 1 == n_strips {
-                bytes_per_pixel * iw * ((origin.y + h) % rows_per_strip)
-            } else {
-                bytes_per_pixel * iw * rows_per_strip
-            };
-
-            self.read_strip(&ifd, strip_idx, &mut buff, expected_bytes)?;
-
-            let sd = StripDesc {
-                bytes_per_row: bytes_per_row as usize,
-                bytes_per_sample,
-                samples_per_pixel,
-                strip_idx: strip_idx as usize,
+        Ok(TiffRegionDecoder {
+            decoder: self,
+            context: DecoderContext {
+                ifd,
+                rows_per_strip,
+                start_idx,
+                end_idx,
+                iw,
+                bytes_per_pixel,
+                n_strips,
                 is_chunky,
-                lower_row,
-                upper_row,
-                lower_col,
-                upper_col,
-            };
+                samples_per_pixel: samples_per_pixel as u64,
+                bytes_per_sample: bytes_per_sample as u64,
+                bytes_per_row,
+                loc,
+                df,
+            },
+        })
+    }
 
-            f(&mut buff, sd)?;
+    pub fn apply_roi_strips<F>(&mut self, loc: Loc, df: u64, mut f: F) -> io::Result<()>
+    where
+        F: FnMut(&mut [u8], &StripDesc, &DecoderContext) -> io::Result<()>,
+    {
+        let mut decoder = self.region_decoder(loc, df)?;
+        let mut buff = vec![0; decoder.nominal_strip_byte_count() as usize];
+
+        for strip_idx in decoder.region_strip_idx_iter() {
+            let sd = decoder.read_region_strip(strip_idx, &mut buff)?;
+            if sd.is_none() {
+                continue;
+            }
+            f(&mut buff, &sd.unwrap(), &decoder.context)?;
         }
 
         Ok(())
@@ -409,12 +400,104 @@ impl TiffDecoder {
     }
 }
 
-pub struct StripDesc {
-    pub bytes_per_row: usize,
-    pub bytes_per_sample: usize,
-    pub samples_per_pixel: usize,
-    pub strip_idx: usize,
+#[derive(Debug)]
+pub struct DecoderContext {
+    pub ifd: IFD,
+    pub rows_per_strip: u64,
+    pub bytes_per_pixel: u64,
+    pub iw: u64,
+    pub start_idx: u64,
+    pub end_idx: u64,
+    pub n_strips: u64,
     pub is_chunky: bool,
+    pub samples_per_pixel: u64,
+    pub bytes_per_sample: u64,
+    pub bytes_per_row: u64,
+    pub loc: Loc,
+    pub df: u64,
+}
+pub struct TiffRegionDecoder<'a> {
+    context: DecoderContext,
+    decoder: &'a mut TiffDecoder,
+}
+
+impl<'a> TiffRegionDecoder<'a> {
+    pub fn read_region_strip(
+        &mut self,
+        strip_idx: u64,
+        mut buff: &mut [u8],
+    ) -> io::Result<Option<StripDesc>> {
+        let dc = &self.context;
+
+        // Calculate start/end indexes into image rows
+        let s_idx = (strip_idx * dc.rows_per_strip) as usize;
+        let e_idx = ((strip_idx + 1) * dc.rows_per_strip) as usize;
+
+        // 1. Calculate start/end indices into the original image
+        let lower_row_abs = std::cmp::max(s_idx, dc.loc.y as usize);
+        let upper_row_abs = std::cmp::min(e_idx, (dc.loc.y + dc.loc.h) as usize);
+
+        // Determine if this strip actually contains a row we need.
+        // Only relevant when downsampling is occuring
+        let strip_l = lower_row_abs;
+        let strip_u = upper_row_abs;
+        let sample_l = ((lower_row_abs - dc.loc.y as usize) / dc.df as usize) * dc.df as usize
+            + dc.loc.y as usize;
+        let sample_u = sample_l + dc.df as usize;
+
+        let overlap = sample_u >= strip_u && sample_u - 1 < strip_u;
+
+        if !(strip_l == sample_l || overlap) {
+            // println!("Skipped");
+            return Ok(None);
+        }
+
+        // 2. Calculate start/end indices into a vector of strip rows
+        let lower_row = lower_row_abs - s_idx;
+        let upper_row = upper_row_abs - s_idx;
+
+        // Chunk and change
+        let lower_col = (dc.bytes_per_pixel * dc.loc.x) as usize;
+        let upper_col = lower_col + (dc.bytes_per_pixel * dc.loc.w) as usize;
+
+        let expected_bytes = if strip_idx + 1 == dc.n_strips {
+            dc.bytes_per_pixel * dc.iw * ((dc.loc.y + dc.loc.h) % dc.rows_per_strip)
+        } else {
+            dc.bytes_per_pixel * dc.iw * dc.rows_per_strip
+        };
+
+        let first_row_idx = strip_idx * dc.rows_per_strip;
+
+        self.decoder
+            .read_strip(&dc.ifd, strip_idx, &mut buff, expected_bytes)?;
+
+        Ok(Some(StripDesc {
+            strip_idx: strip_idx as usize,
+            first_row_idx: first_row_idx as usize,
+            lower_row,
+            upper_row,
+            lower_col,
+            upper_col,
+        }))
+    }
+
+    pub fn nominal_strip_byte_count(&self) -> u64 {
+        self.context.bytes_per_pixel * self.context.iw * self.context.rows_per_strip
+    }
+
+    pub fn region_strip_idx_iter(&self) -> Range<u64> {
+        self.context.start_idx..self.context.end_idx + 1
+    }
+
+    pub fn context(&self) -> &DecoderContext {
+        &self.context
+    }
+}
+
+#[derive(Debug)]
+pub struct StripDesc {
+    pub strip_idx: usize,
+    pub first_row_idx: usize,
     pub lower_row: usize,
     pub upper_row: usize,
     pub lower_col: usize,

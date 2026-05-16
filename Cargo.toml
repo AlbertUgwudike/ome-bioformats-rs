@@ -8,3 +8,4 @@ either = "1.15.0"
 itertools = "0.14.0"
 ome-common-rs = { path = "../ome-common-rs" }
 roxmltree = "0.21.1"
+tokio = { version = "1.46.1", features = ["rt"] }

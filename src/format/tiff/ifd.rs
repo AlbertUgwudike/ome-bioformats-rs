@@ -89,26 +89,26 @@ pub enum Tag {
 }
 
 impl Tag {
-    pub fn from_short(val: u16) -> Option<Self> {
+    pub fn from_short(val: u16) -> Self {
         match val {
-            256 => Some(Self::ImageWidth),
-            257 => Some(Self::ImageLength),
-            258 => Some(Self::BitsPerSample),
-            259 => Some(Self::Compression),
-            262 => Some(Self::PhotometricInterpretation),
-            266 => Some(Self::FillOrder),
-            273 => Some(Self::StripOffsets),
-            274 => Some(Self::Orientation),
-            277 => Some(Self::SamplesPerPixel),
-            278 => Some(Self::RowsPerStrip),
-            279 => Some(Self::StripByteCounts),
-            282 => Some(Self::XResolution),
-            283 => Some(Self::YResolution),
-            284 => Some(Self::PlanarConfiguration),
-            296 => Some(Self::ResolutionUnit),
-            338 => Some(Self::ExtraSamples),
-            339 => Some(Self::SampleFormat),
-            _ => Some(Self::Other),
+            256 => Self::ImageWidth,
+            257 => Self::ImageLength,
+            258 => Self::BitsPerSample,
+            259 => Self::Compression,
+            262 => Self::PhotometricInterpretation,
+            266 => Self::FillOrder,
+            273 => Self::StripOffsets,
+            274 => Self::Orientation,
+            277 => Self::SamplesPerPixel,
+            278 => Self::RowsPerStrip,
+            279 => Self::StripByteCounts,
+            282 => Self::XResolution,
+            283 => Self::YResolution,
+            284 => Self::PlanarConfiguration,
+            296 => Self::ResolutionUnit,
+            338 => Self::ExtraSamples,
+            339 => Self::SampleFormat,
+            _ => Self::Other,
         }
     }
 
