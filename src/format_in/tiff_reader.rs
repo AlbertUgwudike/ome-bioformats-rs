@@ -29,7 +29,7 @@ impl TiffReader {
             region_decoder: decoder,
             curr_strip_idx: 0,
             chunks: vec![],
-            byte_order,
+            byte_order, // <---- TODO: Smelly
         })
     }
 

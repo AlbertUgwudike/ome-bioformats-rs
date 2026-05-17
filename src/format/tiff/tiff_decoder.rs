@@ -324,7 +324,7 @@ impl TiffDecoder {
         Ok(())
     }
 
-    pub fn region_decoder(&mut self, loc: Loc, df: u64) -> io::Result<TiffRegionDecoder> {
+    pub fn region_decoder(&'_ mut self, loc: Loc, df: u64) -> io::Result<TiffRegionDecoder<'_>> {
         let ifd = self.nth_ifd(loc.s)?;
         let iw = self.image_width(&ifd)?;
         let bits_per_sample = self.bits_per_sample(&ifd)?;

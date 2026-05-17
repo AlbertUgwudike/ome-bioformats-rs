@@ -3,7 +3,7 @@ pub mod tiff_reader;
 
 use std::io;
 
-use crate::common::{ByteOrder, Loc, Metadata, PixelSlice};
+use crate::common::{Loc, Metadata, PixelSlice};
 
 pub trait FormatReader {
     // ----------------- Required -------------------

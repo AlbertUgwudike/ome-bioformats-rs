@@ -1,6 +1,6 @@
 pub mod compression;
 
-use std::io;
+use std::{io, slice::Iter};
 
 pub use compression::Compression;
 
@@ -118,6 +118,45 @@ impl Metadata {
 
     pub fn series_count(&self) -> usize {
         self.dimensions.len()
+    }
+
+    pub fn permutations(&self, row_count: usize) -> Vec<Loc> {
+        let mut perms = vec![];
+        for series_idx in 0..self.series_count() {
+            let dim = self.dimensions(series_idx).unwrap();
+            for time_idx in 0..dim.t {
+                for channel_idx in 0..dim.c {
+                    for z_idx in 0..dim.d {
+                        for r in 0..(dim.h as usize / row_count) {
+                            perms.push(Loc::new(
+                                0,
+                                (r * row_count) as u64,
+                                z_idx,
+                                channel_idx,
+                                time_idx,
+                                series_idx as u64,
+                                row_count as u64,
+                                dim.w,
+                            ));
+                        }
+
+                        if dim.h % row_count as u64 != 0 {
+                            perms.push(Loc::new(
+                                0,
+                                dim.h - (dim.h % row_count as u64),
+                                z_idx,
+                                channel_idx,
+                                time_idx,
+                                series_idx as u64,
+                                dim.h % row_count as u64,
+                                dim.w,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        perms
     }
 }
 
