@@ -42,7 +42,8 @@ impl TiffReader {
             .take(sd.upper_row - sd.lower_row)
             .enumerate()
             .filter_map(|(i, r)| {
-                if (i + sd.first_row_idx) % ctx.df as usize == 0 {
+                if (1 + i as i32 + sd.first_row_idx as i32 - ctx.loc.y as i32) % ctx.df as i32 == 0
+                {
                     Some(r)
                 } else {
                     None
@@ -125,7 +126,7 @@ impl<'a> ChunkyTiffReader<'a> {
         self.curr_strip_idx += 1;
 
         if idx as usize + 1 == idxs.end as usize {
-            let bpp = 8 * ctx.bytes_per_pixel as u16;
+            let bpp = 8 * ctx.bytes_per_pixel as u16 / ctx.samples_per_pixel as u16;
             let byte_order = self.byte_order.clone();
             let out = PixelSlice::interpret_bytes(bpp, byte_order, &self.chunks)?;
             Ok(Some(out))

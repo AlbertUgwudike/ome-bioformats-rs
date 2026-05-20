@@ -152,16 +152,16 @@ impl TiffEncoder {
 
             let data_pos = self.ostream.length()? as usize;
             let strip_offsets = (0..strip_count)
-                .map(|j| data_pos + strip_count * 4 + j * byte_counts[0] as usize)
+                .map(|j| data_pos + strip_count * 8 + j * byte_counts[0] as usize)
                 .collect::<Vec<_>>();
 
             self.write_entry(
                 Tag::StripOffsets,
-                Type::LONG,
+                Type::DOUBLE,
                 strip_count as u64,
                 &strip_offsets
                     .iter()
-                    .map(|v| (*v as u32).to_be_bytes())
+                    .map(|v| (*v as u64).to_be_bytes()) // <---- 14h spent finding this bug.
                     .flatten()
                     .collect::<Vec<u8>>(),
             )?;
@@ -223,7 +223,7 @@ impl TiffEncoder {
     }
 
     pub fn write_strip(&mut self, offset: u64, buff: &[u8]) -> io::Result<()> {
-        self.ostream.write_bytes_exact(buff, offset as u64)?;
+        self.ostream.write_bytes_exact(buff, offset)?;
         Ok(())
     }
 

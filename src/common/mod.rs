@@ -1,6 +1,6 @@
 pub mod compression;
 
-use std::{io, slice::Iter};
+use std::io;
 
 pub use compression::Compression;
 

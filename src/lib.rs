@@ -18,12 +18,9 @@ pub fn convert(input_file: String, output_file: String) -> io::Result<()> {
 
     let mut progress = converter.step()?;
     while progress != ConverterProgress::Finished {
-        match progress {
-            ConverterProgress::Converting(num, den) => {
-                let perc = 100.0 * num as f64 / den as f64;
-                println!("Progress: {:?}%", perc)
-            }
-            ConverterProgress::Finished => unreachable!(),
+        if let ConverterProgress::Converting(num, den) = progress {
+            let perc = 100.0 * num as f64 / den as f64;
+            println!("Progress: {:?}%", perc)
         }
         progress = converter.step()?;
     }
@@ -82,13 +79,14 @@ mod tests {
 
     #[test]
     fn lof_to_tiff() {
-        // let input_file = "/Users/albert/Downloads/DAB test brain 1.lof";
-        let input_file = "/Users/albert/Downloads/Saline3 brain 2.lof";
+        let input_file = "/Users/albert/Downloads/olig_ws/ws_converted/Iba1_Arg1_2_conv.tiff";
+        // let input_file = "/Users/albert/Downloads/Saline3 brain 2.lof";
         let output_file = "assets/dab.tiff";
 
         convert(input_file.into(), output_file.into()).unwrap();
 
+        assert!(1 == 2)
         // clean up
-        std::fs::remove_file(output_file).unwrap();
+        // std::fs::remove_file(output_file).unwrap();
     }
 }

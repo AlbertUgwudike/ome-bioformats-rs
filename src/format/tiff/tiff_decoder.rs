@@ -437,18 +437,10 @@ impl<'a> TiffRegionDecoder<'a> {
         let lower_row_abs = std::cmp::max(s_idx, dc.loc.y as usize);
         let upper_row_abs = std::cmp::min(e_idx, (dc.loc.y + dc.loc.h) as usize);
 
-        // Determine if this strip actually contains a row we need.
-        // Only relevant when downsampling is occuring
-        let strip_l = lower_row_abs;
-        let strip_u = upper_row_abs;
-        let sample_l = ((lower_row_abs - dc.loc.y as usize) / dc.df as usize) * dc.df as usize
-            + dc.loc.y as usize;
-        let sample_u = sample_l + dc.df as usize;
+        let overlap = (lower_row_abs as i32 - dc.loc.y as i32 - 1) / dc.df as i32
+            != (upper_row_abs as i32 - dc.loc.y as i32) / dc.df as i32;
 
-        let overlap = sample_u >= strip_u && sample_u - 1 < strip_u;
-
-        if !(strip_l == sample_l || overlap) {
-            // println!("Skipped");
+        if !overlap {
             return Ok(None);
         }
 
