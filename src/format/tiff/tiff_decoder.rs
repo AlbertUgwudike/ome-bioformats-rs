@@ -73,7 +73,7 @@ impl TiffDecoder {
             let h = self.image_length(&ifd)?;
             let c = self.samples_per_pixel(&ifd)? as u64;
 
-            dim.push(Dim::from_whd(w, h, c));
+            dim.push(Dim::new(w, h, 1, c, 1));
 
             let bpps = self.bits_per_sample(&ifd)?;
             bpp.push(bpps);

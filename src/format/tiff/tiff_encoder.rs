@@ -46,7 +46,8 @@ impl TiffEncoder {
         let first_ifd_offset = self.first_ifd_offset();
 
         if self.is_big_tiff {
-            self.ostream.write_u32(0)?;
+            self.ostream.write_u16(8)?;
+            self.ostream.write_u16(0)?;
             self.ostream.write_u64(first_ifd_offset)?;
         } else {
             self.ostream.write_u32(first_ifd_offset as u32)?;
@@ -104,12 +105,12 @@ impl TiffEncoder {
             let rows_in_last = dims.h % rows_per_strip as u64;
             let strip_count = dims.h.div_ceil(rows_per_strip as u64) as usize;
 
-            println!(
-                "SC: {:?}, BIL: {:?}, BPS: {:?}",
-                strip_count, rows_in_last, bytes_per_strip
-            );
+            // println!(
+            //     "SC: {:?}, BIL: {:?}, BPS: {:?}",
+            //     strip_count, rows_in_last, bytes_per_strip
+            // );
 
-            println!("W: {:?}, BPP: {:?}", dims.w, bytes_per_pixel);
+            // println!("W: {:?}, BPP: {:?}", dims.w, bytes_per_pixel);
 
             let mut byte_counts = vec![bytes_per_strip as u32; strip_count];
 

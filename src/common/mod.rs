@@ -45,14 +45,8 @@ pub struct Dim {
 }
 
 impl Dim {
-    pub fn from_whd(w: u64, h: u64, d: u64) -> Self {
-        Self {
-            w,
-            h,
-            d,
-            t: 1,
-            c: 1,
-        }
+    pub fn new(w: u64, h: u64, d: u64, c: u64, t: u64) -> Self {
+        Self { w, h, d, t, c }
     }
 }
 
@@ -86,9 +80,9 @@ impl Metadata {
             self.dimensions[series].d = d;
         } else {
             for _ in 0..series - self.dimensions.len() {
-                self.dimensions.push(Dim::from_whd(0, 0, 0));
+                self.dimensions.push(Dim::new(1, 1, 1, 1, 1));
             }
-            self.dimensions.push(Dim::from_whd(w, h, d))
+            self.dimensions.push(Dim::new(w, h, d, 1, 1))
         }
     }
 
@@ -120,7 +114,7 @@ impl Metadata {
         self.dimensions.len()
     }
 
-    pub fn permutations(&self, row_count: usize) -> Vec<Loc> {
+    pub fn locs(&self, row_count: usize) -> Vec<Loc> {
         let mut perms = vec![];
         for series_idx in 0..self.series_count() {
             let dim = self.dimensions(series_idx).unwrap();
@@ -152,6 +146,30 @@ impl Metadata {
                                 dim.w,
                             ));
                         }
+                    }
+                }
+            }
+        }
+        perms
+    }
+
+    pub fn plane_locs(&self) -> Vec<Loc> {
+        let mut perms = vec![];
+        for series_idx in 0..self.series_count() {
+            let dim = self.dimensions(series_idx).unwrap();
+            for time_idx in 0..dim.t {
+                for channel_idx in 0..dim.c {
+                    for z_idx in 0..dim.d {
+                        perms.push(Loc::new(
+                            0,
+                            0,
+                            z_idx,
+                            channel_idx,
+                            time_idx,
+                            series_idx as u64,
+                            dim.h,
+                            dim.w,
+                        ));
                     }
                 }
             }

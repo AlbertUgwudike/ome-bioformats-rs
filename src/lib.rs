@@ -1,24 +1,19 @@
 use std::io;
 
-use crate::{
-    common::Loc,
-    convert::{FormatConverter, format_converter::ConverterProgress},
-    format_in::FormatReader,
-    format_out::FormatWriter,
-};
+use crate::tools::{FormatConverter, Progress};
 
 pub mod common;
-pub mod convert;
 pub mod format;
 pub mod format_in;
 pub mod format_out;
+pub mod tools;
 
 pub fn convert(input_file: String, output_file: String) -> io::Result<()> {
-    let mut converter = FormatConverter::new(input_file, output_file, 100)?;
+    let mut converter = FormatConverter::new(&input_file, &output_file, 100)?;
 
     let mut progress = converter.step()?;
-    while progress != ConverterProgress::Finished {
-        if let ConverterProgress::Converting(num, den) = progress {
+    while progress != Progress::Finished {
+        if let Progress::Running(num, den) = progress {
             let perc = 100.0 * num as f64 / den as f64;
             println!("Progress: {:?}%", perc)
         }
@@ -33,7 +28,7 @@ mod tests {
     use crate::{
         common::Loc,
         convert,
-        format_in::{FormatReader, lof_reader::LofReader, tiff_reader::TiffReader},
+        format_in::{FormatReader, tiff_reader::TiffReader},
         format_out::{FormatWriter, tiff_writer::TiffWriter},
     };
 

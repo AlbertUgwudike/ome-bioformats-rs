@@ -66,6 +66,8 @@ impl LofDecoder {
             .step_by(2)
             .collect();
 
+        // println!("{}", xml_str);
+
         Ok((memory_offset, xml_str))
     }
 
@@ -97,7 +99,7 @@ impl LofDecoder {
 
         let series_count = if channle_incs.len() <= 1 {
             1
-        } else if let &[1, 2] = &channle_incs[..2] {
+        } else if let &[0, 1] = &channle_incs[..2] {
             1
         } else {
             channle_incs.len()
@@ -147,7 +149,7 @@ impl LofDecoder {
             .map_err(|e| Error::other(e.to_string()))?;
 
         for _ in 0..series_count {
-            dim.push(Dim::from_whd(width, height, channel_count));
+            dim.push(Dim::new(width, height, 1, channel_count, 1));
             bpp.push([bytes_per_pixel * 8].repeat(channel_count as usize));
         }
 

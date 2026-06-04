@@ -36,12 +36,17 @@ impl FormatReader for LofReader {
         let mut bytes = vec![0u8; n_bytes_to_read as usize];
         self.decoder.read_pixel_bytes(bytes_to_skip, &mut bytes)?;
 
-        // let bytes = bytes
-        //     .into_iter()
-        //     .skip(loc.c as usize)
-        //     .step_by(bytes_per_pixel as usize)
-        //     .map(|a| a.to_owned())
-        //     .collect();
+        if bits_per_pixel.len() != 1 {
+            // If chunky config, need extra step to extract channel.
+            // Assumes equal bits per pixel.
+            let bytes_per_channel = bits_per_pixel[0] / 8;
+            bytes = bytes
+                .into_iter()
+                .skip(loc.c as usize * bytes_per_channel as usize)
+                .step_by(bytes_per_pixel as usize)
+                .map(|a| a.to_owned())
+                .collect();
+        }
 
         Ok(bytes)
     }
