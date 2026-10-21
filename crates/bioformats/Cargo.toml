@@ -1,0 +1,14 @@
+[package]
+name = "bioformats"
+description = "A Rust port of OME Bio-Formats: read and write life-sciences image formats"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
+rayon = "1.10"
+roxmltree = "0.21"
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+weezl = "0.1"

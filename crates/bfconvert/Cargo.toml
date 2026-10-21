@@ -1,0 +1,11 @@
+[package]
+name = "bfconvert"
+description = "Convert between image formats using the bioformats crate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bioformats.workspace = true
+clap = { version = "4", features = ["derive"] }
+rayon = "1.10"
