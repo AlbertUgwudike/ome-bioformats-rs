@@ -289,6 +289,10 @@ pub struct LifSpec<'a> {
     pub zero_tail: bool,
     /// Add an image under ProcessingHistory, which readers must skip.
     pub processing_history: bool,
+    /// Give each image a `FrameProperties` child with its own small,
+    /// non-image memory block, as LAS X does. This breaks Bio-Formats'
+    /// positional block matching.
+    pub frame_properties: bool,
 }
 
 impl LifSpec<'_> {
@@ -321,6 +325,13 @@ impl LifSpec<'_> {
                 datas.push(data.clone());
             }
             blocks.push((id, data));
+            if self.frame_properties && spec.is_some() {
+                let id = format!("MemBlock_fp{}", n + 1);
+                children.entry(format!("{folder}/{name}")).or_default().push(format!(
+                    r#"<Element Name="FrameProperties" Visibility="0" UniqueID="fp{n}"><Data><SimpleListInMemory/></Data><Memory Size="26" MemoryBlockID="{id}"/><Children>{{children:{folder}/{name}/FrameProperties}}</Children></Element>"#
+                ));
+                blocks.push((id, vec![7; 26]));
+            }
         }
         fn expand(
             path: &str,

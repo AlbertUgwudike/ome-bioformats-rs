@@ -91,7 +91,8 @@ tools/bf-check/          Java Bio-Formats cross-checker
 `cargo test` runs unit tests plus integration tests that generate synthetic
 LOF files (RGB, BGR, 16-bit, Z-stacks, mosaic tiles, padded rows), synthetic
 LIF projects (nested folders, v1/v2 block headers, zero-padded tails,
-out-of-order blocks, ProcessingHistory duplicates, XZ line scans), and
+out-of-order blocks, ProcessingHistory duplicates, XZ line scans,
+FrameProperties blocks), and
 round-trip synthetic images through every writer option.
 
 Outputs are also checked against the Java reference with
@@ -117,6 +118,14 @@ Results so far:
   padded rows, padded mosaics, and memory blocks stored out of XML order.
   For the padded case Java's formula does handle (one plane, last in the
   file), the two agree.
+- A real LAS X project (`Intro.lif`, 605 MB, 57 series including mosaics,
+  Z-stacks and merged regions): every one of its 1,129 planes matches the
+  bytes of the memory block its XML references. Java Bio-Formats 7.3 gets
+  only 666 right. LAS X stores small non-image `FrameProperties` blocks
+  between image blocks, and Java matches blocks to images by position, so
+  from the second image on it reads its neighbour's pixels. Dimensions,
+  names, physical sizes and dates agree for all 57 series. The conversion
+  takes 0.5 s and 61 MB of RAM (Java: 6 s and 416 MB just to read it).
 - Every compression/tiling/BigTIFF/multi-series variant the writer produces
   decodes in Java to the same MD5s as uncompressed ground truth.
 

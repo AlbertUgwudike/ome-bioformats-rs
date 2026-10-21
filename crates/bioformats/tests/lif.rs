@@ -123,6 +123,7 @@ fn project_with_folders_v2() {
         reverse_blocks: false,
         zero_tail: false,
         processing_history: false,
+        frame_properties: false,
     };
     check("project", lif, &["Series001", "Folder/Inner", "Series003"]);
 }
@@ -136,6 +137,7 @@ fn version_1_blocks_with_zero_tail() {
         reverse_blocks: false,
         zero_tail: true,
         processing_history: false,
+        frame_properties: false,
     };
     check("v1", lif, &["A", "B"]);
 }
@@ -149,6 +151,7 @@ fn blocks_are_matched_by_id_not_position() {
         reverse_blocks: true,
         zero_tail: false,
         processing_history: false,
+        frame_properties: false,
     };
     check("reversed", lif, &["A", "B"]);
 }
@@ -162,6 +165,7 @@ fn processing_history_images_are_skipped() {
         reverse_blocks: false,
         zero_tail: false,
         processing_history: true,
+        frame_properties: false,
     };
     check("history", lif, &["A"]);
 }
@@ -187,8 +191,30 @@ fn padded_rows() {
         reverse_blocks: false,
         zero_tail: false,
         processing_history: false,
+        frame_properties: false,
     };
     check("padded", lif, &["Padded", "Single"]);
+}
+
+/// Reproduces the structure of a real LAS X file where Bio-Formats reads the
+/// wrong pixels for most images: small `FrameProperties` blocks sit between
+/// image blocks, so matching blocks to images by position is off by one.
+#[test]
+fn frame_properties_blocks_do_not_shift_images() {
+    let (a, b, c) = (rgb(), z16(), padded_tiles());
+    let lif = LifSpec {
+        images: vec![
+            ("", "Settings_1", Some(&a)),
+            ("", "Series001", Some(&b)),
+            ("", "Region", Some(&c)),
+        ],
+        version: 2,
+        reverse_blocks: false,
+        zero_tail: false,
+        processing_history: false,
+        frame_properties: true,
+    };
+    check("frameprops", lif, &["Settings_1", "Series001", "Region"]);
 }
 
 #[test]
@@ -204,6 +230,7 @@ fn xz_line_scan() {
         reverse_blocks: false,
         zero_tail: false,
         processing_history: false,
+        frame_properties: false,
     };
     check("xz", lif, &["XZ"]);
 }

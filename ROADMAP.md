@@ -22,8 +22,13 @@ fixtures and a `tools/bf-check` comparison against Java Bio-Formats.
 - [x] LIF reader. Shares metadata and pixel access with LOF
       (`formats/leica/{lms,pixels}.rs`) but keeps `LIFReader`'s own
       dimension rules (`lms::Flavor::Lif`).
-- [ ] Test against real LIF files: so far LIF is verified only on synthetic
-      projects. Sample files are at https://downloads.openmicroscopy.org/images/Leica-LIF/
+- [x] Tested on a real LAS X project (57 series, 1,129 planes): all planes
+      match their XML-referenced memory blocks (Bio-Formats 7.3: 666/1,129).
+- [ ] `.lifext` sidecar files. Newer LAS X writes precomputed pyramid levels
+      and histograms there (`LMSDataContainerEnhancedHeader`, keyed by
+      `ChildrenOf MemoryBlockID`). Not needed for full-resolution
+      conversion, but they could feed pyramidal OME-TIFF output without
+      recomputing levels.
 - [ ] XLIF/XLEF/XLCF (LAS X "project" XML pointing at LOF/TIFF files;
       `XlifDocument` etc.). Mostly path resolution on top of LOF.
 - [ ] **Zeiss CZI reader** (`ZeissCZIReader`, 4.8k lines): ZISRAW segments,
@@ -80,9 +85,11 @@ Approximate size of the Java readers:
   planes or tiles, so only single-plane, untiled, last-in-file images read
   correctly (others are shifted, or throw past end of file).
 - LIF memory blocks are matched to images by `MemoryBlockID`. Bio-Formats
-  matches by position (when the counts agree), so it reads the wrong pixels
-  if blocks are not stored in XML order. Positional matching is the fallback
-  when no IDs match.
+  matches by position (when the counts agree), and its size-based fix-up
+  does not cope with LAS X's small non-image `FrameProperties` blocks. On a
+  real LAS X file that makes it read the wrong pixels for most images, and
+  on some synthetic layouts it throws `ArrayIndexOutOfBoundsException`.
+  Positional matching is the fallback when no IDs match.
 - Channel colours from `Gradient(...)` LUTs are decoded for LIF too;
   Bio-Formats' LIF reader shows them as white.
 - Plain TIFF inputs with IFDs of different shapes are split into one series
