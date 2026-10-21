@@ -3,6 +3,7 @@
 
 pub mod leica;
 pub mod tiff;
+pub mod zeiss;
 
 use std::path::Path;
 
@@ -15,7 +16,12 @@ use crate::writer::{FormatWriter, WriterOptions};
 
 /// Readable formats, in the order they are tried (most specific first, as
 /// in Bio-Formats' `readers.txt`).
-pub const READERS: &[ReaderFormat] = &[leica::LIF_FORMAT, leica::LOF_FORMAT, tiff::READER_FORMAT];
+pub const READERS: &[ReaderFormat] = &[
+    zeiss::CZI_FORMAT,
+    leica::LIF_FORMAT,
+    leica::LOF_FORMAT,
+    tiff::READER_FORMAT,
+];
 
 /// Suffixes the TIFF writer handles.
 const TIFF_SUFFIXES: &[&str] = &["tif", "tiff", "tf2", "tf8", "btf"];

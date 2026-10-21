@@ -12,3 +12,4 @@ roxmltree = "0.21"
 thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
 weezl = "0.1"
+zstd = "0.13"

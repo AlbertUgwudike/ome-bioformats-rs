@@ -4,7 +4,8 @@ A Rust port of [OME Bio-Formats](https://github.com/ome/bioformats), aimed at
 fast, low-memory conversion between microscopy image formats.
 
 Bio-Formats is ~245k lines of Java with ~190 format readers. This port is
-starting with the pipeline that matters first, **Leica LOF/LIF → OME-TIFF**,
+starting with the pipelines that matter first, **Leica LOF/LIF and Zeiss CZI
+→ OME-TIFF**,
 and is built so the rest can be added one format at a time. See
 [ROADMAP.md](ROADMAP.md).
 
@@ -19,7 +20,8 @@ and is built so the rest can be added one format at a time. See
 | **TIFF / BigTIFF / OME-TIFF reader** (strips, tiles, planar/chunky, LZW, zlib, PackBits, predictor, multi-file OME-TIFF, ImageJ hyperstacks) | ported |
 | **TIFF / BigTIFF / OME-TIFF writer** (strips or tiles, LZW, zlib, predictor, auto BigTIFF, physical size → resolution tags) | ported |
 | `bfconvert`, `showinf` command-line tools | ported (core options) |
-| Every other format, pyramids, JPEG/JPEG 2000 codecs, instrument metadata | not yet; see roadmap |
+| **Zeiss CZI reader** (scenes, Z/C/T, stitched mosaics, pyramid levels as series, gray and BGR pixel types, uncompressed and zstd subblocks, truncated files) | ported |
+| Every other format, pyramid output, JPEG/JPEG-XR/JPEG 2000 codecs, instrument metadata | not yet; see roadmap |
 
 ## Usage
 
@@ -79,6 +81,7 @@ crates/bioformats/src/
   io.rs                  positional file reads    [RandomAccessInputStream]
   codec/                 LZW, zlib, PackBits, predictor [loci.formats.codec]
   formats/leica/         LOF, LIF + shared LMS XML [LOFReader, LIFReader, LeicaMicrosystemsMetadata]
+  formats/zeiss/         CZI                      [ZeissCZIReader]
   formats/tiff/          TIFF/OME-TIFF in and out [TiffParser, TiffSaver, *TiffReader, *TiffWriter]
   formats/mod.rs         format detection         [ImageReader, readers.txt]
   convert.rs             conversion engine        [ImageConverter]
@@ -92,7 +95,8 @@ tools/bf-check/          Java Bio-Formats cross-checker
 LOF files (RGB, BGR, 16-bit, Z-stacks, mosaic tiles, padded rows), synthetic
 LIF projects (nested folders, v1/v2 block headers, zero-padded tails,
 out-of-order blocks, ProcessingHistory duplicates, XZ line scans,
-FrameProperties blocks), and
+FrameProperties blocks), synthetic CZI files (zstd in both variants,
+Z/C stacks, scenes, stitched mosaics with and without pyramids), and
 round-trip synthetic images through every writer option.
 
 Outputs are also checked against the Java reference with
@@ -126,6 +130,12 @@ Results so far:
   from the second image on it reads its neighbour's pixels. Dimensions,
   names, physical sizes and dates agree for all 57 series. The conversion
   takes 0.5 s and 61 MB of RAM (Java: 6 s and 416 MB just to read it).
+- Ten real Zeiss CZI brightfield files (single 16-bit frames, and
+  RGB slide scans up to 860 MB with 60+ stitched tiles and 3 pyramid
+  levels): 9 are pixel-identical to Bio-Formats in every series. The tenth
+  is a truncated file, where only the partly missing pyramid tile differs
+  (see "Known deviations" in ROADMAP.md). Synthetic CZI files covering zstd,
+  Z/C stacks, scenes and mosaics also match Bio-Formats.
 - Every compression/tiling/BigTIFF/multi-series variant the writer produces
   decodes in Java to the same MD5s as uncompressed ground truth.
 
@@ -139,8 +149,16 @@ Converting the 593 MB LOF on an M4 Pro, warm cache:
 | `bfconvert --compression zlib --predictor` | 1.15 s | 203 MB | 352 MB |
 | `bfconvert --compression lzw` | 1.0 s | 197 MB | 436 MB |
 
+Converting an 854 MB CZI slide scan (RGB, 64 stitched tiles, 3 pyramid
+levels; 758 MB of pixels across all 4 series):
+
+| Tool | Time | Peak RSS |
+|---|---|---|
+| Java Bio-Formats 7.3 (`convert.jar` from microcount-app) | 12.3 s | 878 MB |
+| `bfconvert` uncompressed, all 4 series | 1.8 s | 188 MB |
+
 ## License
 
-GPL-2.0-or-later. The Leica readers are ports of code from Bio-Formats'
+GPL-2.0-or-later. The Leica and Zeiss readers are ports of code from Bio-Formats'
 GPL-licensed `formats-gpl` component, so this crate follows that license.
 Bio-Formats' TIFF code is BSD-2-Clause.

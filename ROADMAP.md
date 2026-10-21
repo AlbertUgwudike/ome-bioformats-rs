@@ -31,9 +31,17 @@ fixtures and a `tools/bf-check` comparison against Java Bio-Formats.
       recomputing levels.
 - [ ] XLIF/XLEF/XLCF (LAS X "project" XML pointing at LOF/TIFF files;
       `XlifDocument` etc.). Mostly path resolution on top of LOF.
-- [ ] **Zeiss CZI reader** (`ZeissCZIReader`, 4.8k lines): ZISRAW segments,
-      subblock directory, JPEG-XR and zstd subblocks, mosaics and pyramids.
-      Needs the zstd and JPEG-XR codecs below.
+- [x] **Zeiss CZI reader**: segments and subblock directory (with a
+      segment-scan fallback for damaged directories), scenes, Z/C/T plus
+      phase/rotation/illumination, autostitched mosaics, pyramid levels as
+      flattened series, uncompressed and zstd (incl. hi/lo byte packing)
+      subblocks. Verified pixel-for-pixel against Bio-Formats on 10 real
+      brightfield files and on synthetic files.
+- [ ] CZI: JPEG-XR subblocks (most compressed CZI files use it; needs a
+      JPEG-XR decoder, e.g. bindings to jxrlib), JPEG and LZW subblocks,
+      multi-file datasets (`name (1).czi` ...), mixed pixel types, label /
+      slide-preview attachments as extra series, PALM data, per-plane stage
+      positions and timestamps, instrument and ROI metadata.
 - [ ] Leica instrument metadata (lasers, detectors, filters, objectives) and
       ROIs: the rest of `LMSMetadataExtractor` and `MetadataStoreInitializer`.
       Needs the instrument part of the OME model.
@@ -90,6 +98,10 @@ Approximate size of the Java readers:
   real LAS X file that makes it read the wrong pixels for most images, and
   on some synthetic layouts it throws `ArrayIndexOutOfBoundsException`.
   Positional matching is the fallback when no IDs match.
+- CZI pyramid levels report a physical pixel size scaled to the level;
+  Bio-Formats repeats the full-resolution size on every level.
+- In truncated CZI files, the part of a subblock that is present is drawn;
+  Bio-Formats leaves the whole subblock blank.
 - Channel colours from `Gradient(...)` LUTs are decoded for LIF too;
   Bio-Formats' LIF reader shows them as white.
 - Plain TIFF inputs with IFDs of different shapes are split into one series
