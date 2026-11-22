@@ -32,6 +32,9 @@ pub struct CoreMetadata {
     pub false_color: bool,
     pub order_certain: bool,
     pub metadata_complete: bool,
+    /// Colour lookup table for indexed (palette) data: entry `i` is the RGB
+    /// colour of sample value `i`. Port of `get8BitLookupTable`.
+    pub lut: Option<Vec<[u8; 3]>>,
     /// Format-specific key/value pairs ("original metadata") for this series.
     pub series_metadata: BTreeMap<String, String>,
 }
@@ -56,6 +59,7 @@ impl CoreMetadata {
             false_color: false,
             order_certain: true,
             metadata_complete: true,
+            lut: None,
             series_metadata: BTreeMap::new(),
         }
     }

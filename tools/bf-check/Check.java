@@ -28,6 +28,13 @@ public class Check {
           int h = Math.min(rows, r.getSizeY() - y);
           byte[] b = r.openBytes(p, 0, y, r.getSizeX(), h);
           int spp = r.getRGBChannelCount(), bps = FormatTools.getBytesPerPixel(r.getPixelType());
+          if (bps > 1 && !r.isLittleEndian()) {
+            // normalise to little-endian so byte order does not affect the hash
+            for (int i = 0; i + bps <= b.length; i += bps)
+              for (int k = 0; k < bps / 2; k++) {
+                byte tmp = b[i + k]; b[i + k] = b[i + bps - 1 - k]; b[i + bps - 1 - k] = tmp;
+              }
+          }
           if (spp > 1 && !r.isInterleaved()) {
             // normalise planar RGB to interleaved so layouts compare equal
             byte[] o = new byte[b.length]; int n = b.length / spp / bps;

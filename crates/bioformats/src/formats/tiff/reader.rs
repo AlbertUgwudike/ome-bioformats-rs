@@ -78,6 +78,18 @@ impl TiffReader {
         core.size_c = samples;
         core.interleaved = !ifd.planar();
         core.indexed = ifd.u64(tag::PHOTOMETRIC_INTERPRETATION) == Some(3);
+        if core.indexed
+            && samples == 1
+            && let Some(map) = ifd.get(tag::COLOR_MAP).and_then(super::TagValue::as_u64s)
+        {
+            // ColorMap: all reds, then greens, then blues, as 16-bit values.
+            let n = map.len() / 3;
+            core.lut = Some(
+                (0..n)
+                    .map(|i| [0, 1, 2].map(|c| (map[c * n + i] >> 8) as u8))
+                    .collect(),
+            );
+        }
         Ok(core)
     }
 
@@ -241,6 +253,7 @@ impl TiffReader {
             core.little_endian = self.files[first.file].little_endian;
             core.interleaved = from_ifd.interleaved;
             core.indexed = from_ifd.indexed;
+            core.lut = from_ifd.lut.clone();
             if from_ifd.rgb_channel_count != core.rgb_channel_count
                 && core.size_c % from_ifd.rgb_channel_count == 0
             {

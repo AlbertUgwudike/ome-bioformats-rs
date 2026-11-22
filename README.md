@@ -21,6 +21,7 @@ and is built so the rest can be added one format at a time. See
 | **TIFF / BigTIFF / OME-TIFF writer** (strips or tiles, LZW, zlib, predictor, auto BigTIFF, physical size → resolution tags) | ported |
 | `bfconvert`, `showinf` command-line tools | ported (core options) |
 | **Zeiss CZI reader** (scenes, Z/C/T, stitched mosaics, pyramid levels as series, gray and BGR pixel types, uncompressed and zstd subblocks, truncated files) | ported |
+| **PNG / APNG reader and writer** (gray, gray+alpha, RGB, RGBA and palette images at 1–16 bits, interlaced, APNG frames as timepoints with spec-correct blending/disposal, palettes carried through to TIFF `ColorMap`, `pHYs` pixel size) | ported |
 | Every other format, pyramid output, JPEG/JPEG-XR/JPEG 2000 codecs, instrument metadata | not yet; see roadmap |
 
 ## Usage
@@ -44,7 +45,9 @@ cargo build --release
 Output format is chosen by suffix: `.ome.tif`/`.ome.tiff` write OME-TIFF,
 `.tif` writes plain TIFF with an ImageJ hyperstack description, and
 `.btf`/`.tf2`/`.tf8` force BigTIFF. Files whose pixels exceed ~3.9 GiB switch
-to BigTIFF automatically.
+to BigTIFF automatically. `.png` writes PNG (8- or 16-bit, one series; several
+planes become APNG frames, so pick a series with `--series` for multi-series
+inputs).
 
 As a library:
 
@@ -81,6 +84,7 @@ crates/bioformats/src/
   io.rs                  positional file reads    [RandomAccessInputStream]
   codec/                 LZW, zlib, PackBits, predictor [loci.formats.codec]
   formats/leica/         LOF, LIF + shared LMS XML [LOFReader, LIFReader, LeicaMicrosystemsMetadata]
+  formats/png/           PNG, APNG in and out     [APNGReader, APNGWriter]
   formats/zeiss/         CZI                      [ZeissCZIReader]
   formats/tiff/          TIFF/OME-TIFF in and out [TiffParser, TiffSaver, *TiffReader, *TiffWriter]
   formats/mod.rs         format detection         [ImageReader, readers.txt]
@@ -96,7 +100,9 @@ LOF files (RGB, BGR, 16-bit, Z-stacks, mosaic tiles, padded rows), synthetic
 LIF projects (nested folders, v1/v2 block headers, zero-padded tails,
 out-of-order blocks, ProcessingHistory duplicates, XZ line scans,
 FrameProperties blocks), synthetic CZI files (zstd in both variants,
-Z/C stacks, scenes, stitched mosaics with and without pyramids), and
+Z/C stacks, scenes, stitched mosaics with and without pyramids), PNGs of
+every colour type and bit depth (interlaced via an independent Adam7
+encoder) and APNGs exercising every blend and dispose operation, and
 round-trip synthetic images through every writer option.
 
 Outputs are also checked against the Java reference with
@@ -130,6 +136,12 @@ Results so far:
   from the second image on it reads its neighbour's pixels. Dimensions,
   names, physical sizes and dates agree for all 57 series. The conversion
   takes 0.5 s and 61 MB of RAM (Java: 6 s and 416 MB just to read it).
+- PNGs written by Pillow (gray 1/8/16-bit, gray+alpha, RGB, RGBA, palette,
+  and an APNG Pillow stored as moving sub-frames) convert to OME-TIFF and
+  back to PNG with pixels and palettes identical to Pillow's decoding.
+  Java Bio-Formats agrees except where it is wrong: it crashes on 1-bit
+  PNGs whose width is not a multiple of 8, and composites APNG sub-frames
+  onto frame 0 instead of the previous frame.
 - Ten real Zeiss CZI brightfield files (single 16-bit frames, and
   RGB slide scans up to 860 MB with 60+ stitched tiles and 3 pyramid
   levels): 9 are pixel-identical to Bio-Formats in every series. The tenth

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Reads a file with Java Bio-Formats and prints its dimensions plus an MD5 per
-# plane (RGB normalised to interleaved), so Rust output can be compared with
-# the reference implementation.
+# plane (RGB normalised to interleaved, samples to little-endian), so Rust
+# output can be compared with the reference implementation.
 #
 #   BF_JAR=/path/to/bioformats_package.jar tools/bf-check/check.sh FILE [validate]
 #

@@ -2,6 +2,7 @@
 //! Port of `loci.formats.ImageReader` / `ImageWriter` and `readers.txt`.
 
 pub mod leica;
+pub mod png;
 pub mod tiff;
 pub mod zeiss;
 
@@ -20,6 +21,7 @@ pub const READERS: &[ReaderFormat] = &[
     zeiss::CZI_FORMAT,
     leica::LIF_FORMAT,
     leica::LOF_FORMAT,
+    png::READER_FORMAT,
     tiff::READER_FORMAT,
 ];
 
@@ -52,6 +54,11 @@ pub fn create_writer(
 ) -> Result<Box<dyn FormatWriter>> {
     if has_suffix(path, TIFF_SUFFIXES) {
         return Ok(Box::new(tiff::TiffWriter::create(
+            path, cores, meta, options,
+        )?));
+    }
+    if has_suffix(path, &["png"]) {
+        return Ok(Box::new(png::PngWriter::create(
             path, cores, meta, options,
         )?));
     }

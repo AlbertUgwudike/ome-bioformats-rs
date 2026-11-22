@@ -167,6 +167,8 @@ impl TiffWriter {
         let layout = &self.layouts[rec.series];
         let spp = core.rgb_channel_count as u16;
         let bits = (core.pixel_type.bytes() * 8) as u16;
+        // Palette images keep their LUT as a ColorMap (8-bit only).
+        let palette = core.lut.as_ref().filter(|_| spp == 1 && bits == 8);
         let mut e = vec![
             Entry::longs(tag::NEW_SUBFILE_TYPE, &[0]),
             Entry::longs(tag::IMAGE_WIDTH, &[core.size_x]),
@@ -175,12 +177,27 @@ impl TiffWriter {
             Entry::shorts(tag::COMPRESSION, &[self.options.compression.tiff_code()]),
             Entry::shorts(
                 tag::PHOTOMETRIC_INTERPRETATION,
-                &[if spp == 3 || spp == 4 { 2 } else { 1 }],
+                &[if palette.is_some() {
+                    3
+                } else if spp == 3 || spp == 4 {
+                    2
+                } else {
+                    1
+                }],
             ),
             Entry::shorts(tag::SAMPLES_PER_PIXEL, &[spp]),
             Entry::shorts(tag::PLANAR_CONFIGURATION, &[1]),
             Entry::ascii(tag::SOFTWARE, ome_xml::CREATOR),
         ];
+        if let Some(lut) = palette {
+            let mut map = vec![0u16; 3 * 256];
+            for (i, rgb) in lut.iter().take(256).enumerate() {
+                for c in 0..3 {
+                    map[c * 256 + i] = rgb[c] as u16 * 257;
+                }
+            }
+            e.push(Entry::shorts(tag::COLOR_MAP, &map));
+        }
         if let Some(d) = description {
             e.push(Entry::ascii(tag::IMAGE_DESCRIPTION, d));
         }

@@ -71,7 +71,7 @@ Approximate size of the Java readers:
 | Aperio SVS, Hamamatsu NDPI | 0.8k / 1k | TIFF-based pyramids |
 | Imaris HDF (`.ims`) | 0.75k | needs HDF5 |
 | MetaMorph STK/ND | 2.4k | TIFF-based |
-| ICS, DICOM, NIfTI, FITS, PNG/JPEG/BMP, AVI | small | simple containers |
+| ICS, DICOM, NIfTI, FITS, JPEG/BMP, AVI | small | simple containers (PNG/APNG done) |
 
 ## Phase 4: completeness
 
@@ -104,5 +104,13 @@ Approximate size of the Java readers:
   Bio-Formats leaves the whole subblock blank.
 - Channel colours from `Gradient(...)` LUTs are decoded for LIF too;
   Bio-Formats' LIF reader shows them as white.
+- APNG frames are composited per the APNG spec (previous canvas, blend and
+  dispose operations; a default image outside the animation is not a
+  frame). Bio-Formats pastes each sub-frame onto frame 0, so moving
+  sub-frames leave stale pixels there.
+- PNG reading also exposes `pHYs` pixel sizes and text chunks, and palettes
+  as a LUT that the TIFF writer stores as a `ColorMap`. PNG writing keeps
+  1/2/4-bit gray and palette images at their depth (Bio-Formats inflates
+  them to 8 bits, and its reader cannot read some 1-bit files).
 - Plain TIFF inputs with IFDs of different shapes are split into one series
   per run of same-shaped IFDs.
